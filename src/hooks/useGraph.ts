@@ -16,8 +16,29 @@ import { createManager as createHistoryManager } from "../history";
 import * as Snapshots from "../snapshots";
 import * as AttributeLayout from "../attributeLayout";
 import { createERGraph, buildDefaultLayoutCfg } from "../graph/createERGraph";
+import type { LayoutBoundary } from "../graph/createERGraph";
+import { updateBoundaryRect, clampNodesToBoundary, boundaryToBox } from "../graph/boundaryRect";
+import type { BoundaryBox } from "../graph/boundaryRect";
 import { attachEntityDragSync } from "../graph/attachEntityDragSync";
 import { attachNodeSelection } from "../graph/attachEntitySelection";
+
+const PX_PER_CM = 96 / 2.54;
+
+export type BoundaryUnit = "px" | "cm";
+
+export interface BoundaryPreset {
+  label: string;
+  widthCm: number;
+  heightCm: number;
+}
+
+export const BOUNDARY_PRESETS: Record<string, BoundaryPreset> = {
+  a4: { label: "A4", widthCm: 21, heightCm: 29.7 },
+  "a4-landscape": { label: "A4 ⟳", widthCm: 29.7, heightCm: 21 },
+};
+
+export const cmToPx = (cm: number) => Math.round(cm * PX_PER_CM);
+export const pxToCm = (px: number) => Math.round((px / PX_PER_CM) * 10) / 10;
 import type { SelectionController } from "../graph/attachEntitySelection";
 import { attachForceLoop } from "../graph/forceLoop";
 import type { ForceLoopController } from "../graph/forceLoop";
@@ -33,6 +54,9 @@ export interface GenerateOptions {
   isColored?: boolean;
   showComment?: boolean;
   hideFields?: boolean;
+  boundaryWidth?: number;
+  boundaryHeight?: number;
+  showBoundary?: boolean;
   positionMap?: Map<string, { x?: number; y?: number; label?: string }> | null;
 }
 
@@ -54,6 +78,12 @@ export interface UseGraphResult {
   hideFields: boolean;
   forceOn: boolean;
   readOnly: boolean;
+  boundaryWidth: number;
+  boundaryHeight: number;
+  showBoundary: boolean;
+  boundaryUnit: BoundaryUnit;
+  boundaryConstrain: boolean;
+  boundaryRatioLock: boolean;
   hasGraph: boolean;
   error: string | null;
   loading: boolean;
@@ -64,6 +94,13 @@ export interface UseGraphResult {
   setHideFields: (next: boolean) => void;
   setForceOn: (next: boolean) => void;
   setReadOnly: (next: boolean) => void;
+  setBoundaryWidth: (next: number) => void;
+  setBoundaryHeight: (next: number) => void;
+  setShowBoundary: (next: boolean) => void;
+  setBoundaryUnit: (next: BoundaryUnit) => void;
+  setBoundaryConstrain: (next: boolean) => void;
+  setBoundaryRatioLock: (next: boolean) => void;
+  applyBoundaryPreset: (key: string) => void;
   setError: (next: string | null) => void;
   // commands
   handleGenerate: (opts?: GenerateOptions) => void;
@@ -100,6 +137,13 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
   const [hideFields, setHideFieldsState] = useState(false);
   const [forceOn, setForceOnState] = useState(false);
   const [readOnly, setReadOnlyState] = useState(false);
+  const [boundaryWidth, setBoundaryWidthState] = useState(0);
+  const [boundaryHeight, setBoundaryHeightState] = useState(0);
+  const [showBoundary, setShowBoundaryState] = useState(false);
+  const [boundaryUnit, setBoundaryUnitState] = useState<BoundaryUnit>("px");
+  const [boundaryConstrain, setBoundaryConstrainState] = useState(true);
+  const [boundaryRatioLock, setBoundaryRatioLockState] = useState(false);
+  const boundaryRatioRef = useRef(1);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [hasGraph, setHasGraph] = useState(false);
@@ -112,13 +156,39 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
   const forceCtrlRef = useRef<ForceLoopController | null>(null);
   const forceOnRef = useRef(false);
   const readOnlyRef = useRef(false);
+  const boundaryConstrainRef = useRef(true);
+  const boundaryRef = useRef<{
+    width: number;
+    height: number;
+    visible: boolean;
+  }>({ width: 0, height: 0, visible: false });
   const selectionRef = useRef<SelectionController | null>(null);
 
   // 持有最新的 t/state 供 handleGenerate 在 stale closure 之外读到。
   // mutator 同步走 next 显式参数；这个 ref 主要给"用户直接点 Generate 按钮"
   // 这种没有显式 opts 的路径用。
-  const stateRef = useRef({ inputText, isColored, showComment, hideFields, readOnly, t });
-  stateRef.current = { inputText, isColored, showComment, hideFields, readOnly, t };
+  const stateRef = useRef({
+    inputText,
+    isColored,
+    showComment,
+    hideFields,
+    readOnly,
+    boundaryWidth,
+    boundaryHeight,
+    showBoundary,
+    t,
+  });
+  stateRef.current = {
+    inputText,
+    isColored,
+    showComment,
+    hideFields,
+    readOnly,
+    boundaryWidth,
+    boundaryHeight,
+    showBoundary,
+    t,
+  };
 
   const persistence = useSnapshotPersistence({ graphRef, containerRef });
   const { persistSnapshot, schedulePersist, cancelPendingPersist } = persistence;
@@ -132,13 +202,37 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     forceCtrlRef.current?.setEnabled(false);
   };
 
+  const getBoundaryBox = (): BoundaryBox | null => {
+    if (!boundaryConstrainRef.current) return null;
+    const b = boundaryRef.current;
+    if (b.width <= 0 || b.height <= 0) return null;
+    const container = containerRef.current;
+    if (!container) return null;
+    return boundaryToBox({
+      width: b.width,
+      height: b.height,
+      centerX: container.offsetWidth / 2,
+      centerY: 300,
+    });
+  };
+
   const handleGenerate = (genOpts: GenerateOptions = {}) => {
     const cur = stateRef.current;
     const useInputText = genOpts.inputText ?? cur.inputText;
     const useIsColored = genOpts.isColored ?? cur.isColored;
     const useShowComment = genOpts.showComment ?? cur.showComment;
     const useHideFields = genOpts.hideFields ?? cur.hideFields;
+    const useBoundaryWidth = genOpts.boundaryWidth ?? cur.boundaryWidth;
+    const useBoundaryHeight = genOpts.boundaryHeight ?? cur.boundaryHeight;
+    const useShowBoundary = genOpts.showBoundary ?? cur.showBoundary;
     const positionMap = genOpts.positionMap ?? null;
+
+    // 同步 boundaryRef 供 force loop / drag sync 等闭包读取最新值
+    boundaryRef.current = {
+      width: useBoundaryWidth,
+      height: useBoundaryHeight,
+      visible: useShowBoundary,
+    };
 
     try {
       setError(null);
@@ -240,20 +334,37 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
 
       // 恢复路径下不跑力布局；其余使用默认 force2 配置
       let layoutCfg: Record<string, unknown> | undefined;
+      let boundary: LayoutBoundary | undefined;
+      if (useBoundaryWidth > 0 && useBoundaryHeight > 0) {
+        boundary = {
+          width: useBoundaryWidth,
+          height: useBoundaryHeight,
+          centerX: container.offsetWidth / 2,
+          centerY: 300,
+        };
+      }
       if (!positionMap) {
-        layoutCfg = buildDefaultLayoutCfg(container.offsetWidth, {
-          tick: () => graph.refreshPositions(),
-          onLayoutEnd: () => {
-            // 先让互不相连的组件环绕分布，避免十字交叉
-            setTimeout(() => {
-              if (graphRef.current && !graphRef.current.destroyed) {
-                spreadDisconnectedComponents(graphRef.current, () => {
-                  smoothFitView(graphRef.current, 800, "easeOutCubic");
-                });
-              }
-            }, 30);
+        layoutCfg = buildDefaultLayoutCfg(
+          container.offsetWidth,
+          {
+            tick: () => graph.refreshPositions(),
+            onLayoutEnd: () => {
+              // 先让互不相连的组件环绕分布，避免十字交叉
+              setTimeout(() => {
+                if (graphRef.current && !graphRef.current.destroyed) {
+                  spreadDisconnectedComponents(graphRef.current, () => {
+                    const box = getBoundaryBox();
+                    if (box && graphRef.current) {
+                      clampNodesToBoundary(graphRef.current, box);
+                    }
+                    smoothFitView(graphRef.current, 800, "easeOutCubic");
+                  });
+                }
+              }, 30);
+            },
           },
-        });
+          boundary,
+        );
       }
 
       const graph = createERGraph({
@@ -296,7 +407,10 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
         onBeforeChange: () => historyRef.current.record(graph),
         canEdit: () => !readOnlyRef.current,
       });
-      attachEntityDragSync(graph as any, historyRef.current, () => forceOnRef.current);
+      attachEntityDragSync(graph as any, historyRef.current, {
+        isForceActive: () => forceOnRef.current,
+        getBoundary: getBoundaryBox,
+      });
 
       // 节点选中（所有类型：实体 / 属性 / 关系）
       selectionRef.current = attachNodeSelection(graph as any);
@@ -306,8 +420,21 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
         graph.setMode?.("readonly");
       }
 
+      // 绘制布局边界矩形（如果已启用）
+      if (graph.get) {
+        updateBoundaryRect(graph as any, {
+          width: useBoundaryWidth || 800,
+          height: useBoundaryHeight || 600,
+          centerX: container.offsetWidth / 2,
+          centerY: 300,
+          visible: !!useShowBoundary,
+        });
+      }
+
       // 持续力导向控制器：拖动期间根据斥力 + 连边引力重排其它节点
-      const forceCtrl = attachForceLoop(graph as any);
+      const forceCtrl = attachForceLoop(graph as any, {
+        getBoundary: getBoundaryBox,
+      });
       forceCtrlRef.current = forceCtrl;
       if (forceOnRef.current) forceCtrl.setEnabled(true);
     } catch (e) {
@@ -403,6 +530,89 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     }
   };
 
+  const applyBoundaryRectToGraph = (w?: number, h?: number, v?: boolean) => {
+    const graph = graphRef.current;
+    if (!graph || graph.destroyed || !graph.get) return;
+    const container = containerRef.current;
+    if (!container) return;
+    updateBoundaryRect(graph as any, {
+      width: (w ?? boundaryWidth) || 800,
+      height: (h ?? boundaryHeight) || 600,
+      centerX: container.offsetWidth / 2,
+      centerY: 300,
+      visible: (v ?? showBoundary) && (w ?? boundaryWidth) > 0 && (h ?? boundaryHeight) > 0,
+    });
+  };
+
+  const setBoundaryWidth = (next: number) => {
+    setBoundaryWidthState(next);
+    boundaryRef.current = { ...boundaryRef.current, width: next };
+    if (boundaryRatioLock && next > 0 && boundaryHeight > 0) {
+      const ratio = boundaryRatioRef.current || 1;
+      const newH = Math.round(next / ratio);
+      setBoundaryHeightState(newH);
+      boundaryRef.current = { ...boundaryRef.current, height: newH };
+      applyBoundaryRectToGraph(next, newH, undefined);
+    } else {
+      if (boundaryRatioLock && next > 0) {
+        boundaryRatioRef.current = next / (boundaryHeight || 1);
+      }
+      applyBoundaryRectToGraph(next, undefined, undefined);
+    }
+  };
+
+  const setBoundaryHeight = (next: number) => {
+    setBoundaryHeightState(next);
+    boundaryRef.current = { ...boundaryRef.current, height: next };
+    if (boundaryRatioLock && next > 0 && boundaryWidth > 0) {
+      const ratio = boundaryRatioRef.current || 1;
+      const newW = Math.round(next * ratio);
+      setBoundaryWidthState(newW);
+      boundaryRef.current = { ...boundaryRef.current, width: newW };
+      applyBoundaryRectToGraph(newW, next, undefined);
+    } else {
+      if (boundaryRatioLock && next > 0) {
+        boundaryRatioRef.current = (boundaryWidth || 1) / next;
+      }
+      applyBoundaryRectToGraph(undefined, next, undefined);
+    }
+  };
+
+  const setShowBoundary = (next: boolean) => {
+    setShowBoundaryState(next);
+    boundaryRef.current = { ...boundaryRef.current, visible: next };
+    applyBoundaryRectToGraph(undefined, undefined, next);
+  };
+
+  const setBoundaryConstrain = (next: boolean) => {
+    boundaryConstrainRef.current = next;
+    setBoundaryConstrainState(next);
+  };
+
+  const setBoundaryRatioLock = (next: boolean) => {
+    setBoundaryRatioLockState(next);
+    if (next && boundaryWidth > 0 && boundaryHeight > 0) {
+      boundaryRatioRef.current = boundaryWidth / boundaryHeight;
+    }
+  };
+
+  const setBoundaryUnit = (next: BoundaryUnit) => {
+    setBoundaryUnitState(next);
+  };
+
+  const applyBoundaryPreset = (key: string) => {
+    const preset = BOUNDARY_PRESETS[key];
+    if (!preset) return;
+    const w = cmToPx(preset.widthCm);
+    const h = cmToPx(preset.heightCm);
+    setBoundaryWidthState(w);
+    setBoundaryHeightState(h);
+    setShowBoundaryState(true);
+    setBoundaryUnitState("cm");
+    boundaryRef.current = { width: w, height: h, visible: true };
+    applyBoundaryRectToGraph(w, h, true);
+  };
+
   const restoreFromSnapshot = (snap: SnapshotRecord) => {
     if (!snap || !snap.nodes) return;
     // 直接刷 React 状态 + 用 opts 覆盖触发一次 handleGenerate
@@ -483,6 +693,8 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     historyRef.current.record(graphRef.current);
     const containerWidth = containerRef.current?.offsetWidth || 1200;
     forceAlignLayout(graphRef.current, containerWidth);
+    const box = getBoundaryBox();
+    if (box) clampNodesToBoundary(graphRef.current, box);
   };
 
   const handleArrangeLayout = () => {
@@ -490,6 +702,8 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     disableForceIfOn();
     historyRef.current.record(graphRef.current);
     arrangeLayout(graphRef.current);
+    const box = getBoundaryBox();
+    if (box) clampNodesToBoundary(graphRef.current, box);
   };
 
   const deleteSelectedNode = () => {
@@ -567,6 +781,12 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     hideFields,
     forceOn,
     readOnly,
+    boundaryWidth,
+    boundaryHeight,
+    showBoundary,
+    boundaryUnit,
+    boundaryConstrain,
+    boundaryRatioLock,
     hasGraph,
     error,
     loading,
@@ -576,6 +796,13 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     setHideFields,
     setForceOn,
     setReadOnly,
+    setBoundaryWidth,
+    setBoundaryHeight,
+    setShowBoundary,
+    setBoundaryUnit,
+    setBoundaryConstrain,
+    setBoundaryRatioLock,
+    applyBoundaryPreset,
     setError,
     handleGenerate,
     handleForceAlign,

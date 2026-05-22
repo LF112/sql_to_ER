@@ -1,4 +1,5 @@
 import type { GraphLike } from "../types";
+import type { BoundaryBox } from "./boundaryRect";
 
 interface ForceableGraph extends GraphLike {
   on(event: string, handler: (e: any) => void): void;
@@ -10,12 +11,20 @@ export interface ForceLoopController {
   destroy(): void;
 }
 
+export interface ForceLoopOptions {
+  getBoundary?: () => BoundaryBox | null;
+}
+
 // 持续力导向控制器
 // 不依赖 G6 自带 layout tick（首次收敛后就不再跑），而是自写一个轻量
 // 物理步骤。开关一旦打开，RAF 循环立刻起跑（不必先拖一下）；拖动期间
 // 被拖节点由 drag-node 钉在鼠标上，其余节点在循环里被斥力 + 连边引力
 // 推拉；关闭时立即停止。
-export function attachForceLoop(graph: ForceableGraph): ForceLoopController {
+export function attachForceLoop(
+  graph: ForceableGraph,
+  opts?: ForceLoopOptions,
+): ForceLoopController {
+  const getBoundary = opts?.getBoundary;
   let enabled = false;
   let raf: number | null = null;
   let pinnedId: string | null = null;
@@ -130,7 +139,15 @@ export function attachForceLoop(graph: ForceableGraph): ForceLoopController {
       velocities.set(id, v);
 
       if (Math.abs(v.vx) > 0.05 || Math.abs(v.vy) > 0.05) {
-        graph.updateItem(n, { x: p.x + v.vx, y: p.y + v.vy }, false);
+        let nx = p.x + v.vx;
+        let ny = p.y + v.vy;
+        const box = getBoundary?.();
+        if (box) {
+          const margin = r + 4;
+          nx = Math.max(box.minX + margin, Math.min(box.maxX - margin, nx));
+          ny = Math.max(box.minY + margin, Math.min(box.maxY - margin, ny));
+        }
+        graph.updateItem(n, { x: nx, y: ny }, false);
       }
     });
 

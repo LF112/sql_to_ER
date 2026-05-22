@@ -87,14 +87,26 @@ export interface ForceLayoutHooks {
   onLayoutEnd: () => void;
 }
 
+export interface LayoutBoundary {
+  width: number;
+  height: number;
+  centerX: number;
+  centerY: number;
+}
+
 /** 默认 force2 布局参数（仅当不是恢复快照路径时使用） */
 export function buildDefaultLayoutCfg(
   containerWidth: number,
   hooks: ForceLayoutHooks,
+  boundary?: LayoutBoundary,
 ): Record<string, unknown> {
-  return {
+  const centerX = boundary ? boundary.centerX : containerWidth / 2;
+  const centerY = boundary ? boundary.centerY : 300;
+
+  const cfg: Record<string, unknown> = {
     type: "force2",
     preventOverlap: true,
+    center: [centerX, centerY],
     nodeSize: (node: { nodeType?: string }) => {
       const uniformSizes: Record<string, number> = {
         entity: 140,
@@ -113,9 +125,15 @@ export function buildDefaultLayoutCfg(
     factor: 1,
     maxIteration: 800,
     animate: true,
-    center: [containerWidth / 2, 300],
     clustering: false,
     tick: hooks.tick,
     onLayoutEnd: hooks.onLayoutEnd,
   };
+
+  if (boundary) {
+    cfg.width = boundary.width;
+    cfg.height = boundary.height;
+  }
+
+  return cfg;
 }

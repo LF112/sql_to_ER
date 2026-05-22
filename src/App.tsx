@@ -9,8 +9,11 @@ import { SwitchControl } from "./components/SwitchControl";
 import {
   CircleNodesIcon,
   ClockRotateLeftIcon,
+  CompressIcon,
+  ExpandIcon,
   EyeIcon,
   EyeSlashIcon,
+  LinkIcon,
   ListUlIcon,
   LockIcon,
   LockOpenIcon,
@@ -20,7 +23,8 @@ import * as Exporter from "./exporter";
 import * as Snapshots from "./snapshots";
 import type { SnapshotRecord } from "./types";
 import { HistoryOverlay } from "./HistoryOverlay";
-import { useGraph } from "./hooks/useGraph";
+import { useGraph, BOUNDARY_PRESETS, cmToPx, pxToCm } from "./hooks/useGraph";
+import type { BoundaryUnit } from "./hooks/useGraph";
 import { useExportButton } from "./hooks/useExportButton";
 import type { ExportFormat, ExportDoneCallback } from "./hooks/useExportButton";
 import { useUndoRedoShortcuts } from "./hooks/useUndoRedoShortcuts";
@@ -48,6 +52,12 @@ const App = () => {
     hideFields,
     forceOn,
     readOnly,
+    boundaryWidth,
+    boundaryHeight,
+    showBoundary,
+    boundaryUnit,
+    boundaryConstrain,
+    boundaryRatioLock,
     hasGraph,
     error,
     loading,
@@ -58,6 +68,13 @@ const App = () => {
     setHideFields,
     setForceOn,
     setReadOnly,
+    setBoundaryWidth,
+    setBoundaryHeight,
+    setShowBoundary,
+    setBoundaryUnit,
+    setBoundaryConstrain,
+    setBoundaryRatioLock,
+    applyBoundaryPreset,
     handleGenerate,
     handleForceAlign,
     handleArrangeLayout,
@@ -560,6 +577,210 @@ const App = () => {
                 height: "100%",
               }}
             >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "5px 12px",
+                  borderBottom: "1px solid var(--app-border)",
+                  background: "var(--app-bg-overlay)",
+                  flexShrink: 0,
+                }}
+              >
+                {/* ── 尺寸输入组 ── */}
+                <span
+                  style={{
+                    fontSize: "0.7rem",
+                    fontWeight: 700,
+                    color: "var(--app-fg-secondary)",
+                    userSelect: "none",
+                  }}
+                >
+                  W
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  max={boundaryUnit === "cm" ? "200" : "10000"}
+                  step={boundaryUnit === "cm" ? "0.5" : "100"}
+                  value={
+                    boundaryUnit === "cm"
+                      ? boundaryWidth > 0
+                        ? pxToCm(boundaryWidth)
+                        : ""
+                      : boundaryWidth || ""
+                  }
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (raw === "") {
+                      setBoundaryWidth(0);
+                      return;
+                    }
+                    const v = parseFloat(raw);
+                    if (isNaN(v) || v < 0) return;
+                    setBoundaryWidth(boundaryUnit === "cm" ? cmToPx(v) : Math.round(v));
+                  }}
+                  placeholder="—"
+                  title={t.tipBoundaryWidth}
+                  style={{
+                    width: "58px",
+                    padding: "3px 6px",
+                    fontSize: "0.75rem",
+                    border: "1px solid var(--app-border)",
+                    borderRadius: "5px",
+                    background: "var(--app-bg)",
+                    color: "var(--app-fg)",
+                    textAlign: "center",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: "0.65rem",
+                    color: "var(--app-fg-tertiary)",
+                    userSelect: "none",
+                  }}
+                >
+                  ×
+                </span>
+                <span
+                  style={{
+                    fontSize: "0.7rem",
+                    fontWeight: 700,
+                    color: "var(--app-fg-secondary)",
+                    userSelect: "none",
+                  }}
+                >
+                  H
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  max={boundaryUnit === "cm" ? "200" : "10000"}
+                  step={boundaryUnit === "cm" ? "0.5" : "100"}
+                  value={
+                    boundaryUnit === "cm"
+                      ? boundaryHeight > 0
+                        ? pxToCm(boundaryHeight)
+                        : ""
+                      : boundaryHeight || ""
+                  }
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (raw === "") {
+                      setBoundaryHeight(0);
+                      return;
+                    }
+                    const v = parseFloat(raw);
+                    if (isNaN(v) || v < 0) return;
+                    setBoundaryHeight(boundaryUnit === "cm" ? cmToPx(v) : Math.round(v));
+                  }}
+                  placeholder="—"
+                  title={t.tipBoundaryHeight}
+                  style={{
+                    width: "58px",
+                    padding: "3px 6px",
+                    fontSize: "0.75rem",
+                    border: "1px solid var(--app-border)",
+                    borderRadius: "5px",
+                    background: "var(--app-bg)",
+                    color: "var(--app-fg)",
+                    textAlign: "center",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                />
+
+                {/* ── 分隔 ── */}
+                <span
+                  style={{
+                    width: "1px",
+                    height: "18px",
+                    background: "var(--app-border)",
+                    flexShrink: 0,
+                  }}
+                />
+
+                {/* ── 单位 + 预设组 ── */}
+                <button
+                  className="btn btn-sm btn-secondary"
+                  onClick={() => setBoundaryUnit(boundaryUnit === "px" ? "cm" : "px")}
+                  title={boundaryUnit === "px" ? "切换为厘米" : "Switch to px"}
+                  style={{
+                    padding: "2px 7px",
+                    fontSize: "0.7rem",
+                    fontWeight: 600,
+                    lineHeight: 1.3,
+                    fontFamily: "monospace",
+                    minWidth: "30px",
+                  }}
+                >
+                  {boundaryUnit}
+                </button>
+                {Object.entries(BOUNDARY_PRESETS).map(([key, p]) => (
+                  <button
+                    key={key}
+                    className="btn btn-sm btn-secondary"
+                    onClick={() => applyBoundaryPreset(key)}
+                    title={`${p.label}: ${p.widthCm}×${p.heightCm} cm`}
+                    style={{
+                      padding: "2px 7px",
+                      fontSize: "0.7rem",
+                      fontWeight: 600,
+                      lineHeight: 1.3,
+                    }}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+
+                {/* ── 分隔 ── */}
+                <span
+                  style={{
+                    width: "1px",
+                    height: "18px",
+                    background: "var(--app-border)",
+                    flexShrink: 0,
+                  }}
+                />
+
+                {/* ── 开关组 ── */}
+                <button
+                  className={`btn btn-sm ${boundaryConstrain ? "btn-accent" : "btn-secondary"}`}
+                  onClick={() => setBoundaryConstrain(!boundaryConstrain)}
+                  disabled={boundaryWidth <= 0 || boundaryHeight <= 0}
+                  title={boundaryConstrain ? "约束布局 — 点击解除" : "仅显示边界 — 点击约束"}
+                  style={{ padding: "3px 7px", lineHeight: 1 }}
+                >
+                  {boundaryConstrain ? (
+                    <CompressIcon width="0.85em" height="0.85em" />
+                  ) : (
+                    <ExpandIcon width="0.85em" height="0.85em" />
+                  )}
+                </button>
+                <button
+                  className={`btn btn-sm ${boundaryRatioLock ? "btn-accent" : "btn-secondary"}`}
+                  onClick={() => setBoundaryRatioLock(!boundaryRatioLock)}
+                  disabled={boundaryWidth <= 0 || boundaryHeight <= 0}
+                  title={boundaryRatioLock ? "等比锁定 — 点击解锁" : "自由尺寸 — 点击等比"}
+                  style={{ padding: "3px 7px", lineHeight: 1 }}
+                >
+                  <LinkIcon width="0.85em" height="0.85em" />
+                </button>
+                <button
+                  className={`btn btn-sm ${showBoundary ? "btn-accent" : "btn-secondary"}`}
+                  onClick={() => setShowBoundary(!showBoundary)}
+                  disabled={boundaryWidth <= 0 || boundaryHeight <= 0}
+                  title={showBoundary ? t.tipHideBoundary : t.tipShowBoundary}
+                  style={{ padding: "3px 7px", lineHeight: 1 }}
+                >
+                  {showBoundary ? (
+                    <EyeIcon width="0.9em" height="0.9em" />
+                  ) : (
+                    <EyeSlashIcon width="0.9em" height="0.9em" />
+                  )}
+                </button>
+              </div>
               <div
                 className={`diagram-container ${showBackground ? "" : "no-grid"}`}
                 style={{ border: "none", borderRadius: 0 }}

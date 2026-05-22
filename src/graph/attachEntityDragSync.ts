@@ -1,16 +1,32 @@
 import type { GraphLike } from "../types";
 import type { HistoryManager } from "../history";
+import type { BoundaryBox } from "./boundaryRect";
 
 interface DraggableGraph extends GraphLike {
   on(event: string, handler: (e: any) => void): void;
   setItemState(item: unknown, state: string, value: boolean): void;
 }
 
+export interface DragSyncOptions {
+  isForceActive?: () => boolean;
+  getBoundary?: () => BoundaryBox | null;
+}
+
+const nodeRadius = (m: any): number => {
+  const sizes: Record<string, number> = {
+    entity: 80,
+    relationship: 50,
+    attribute: 50,
+  };
+  return sizes[m?.nodeType] || 50;
+};
+
 /**
  * 给 G6 graph 装上交互：
  *   1. node hover 高亮
  *   2. 拖任意节点之前压一次撤销快照
  *   3. 拖实体节点时同步带动它的属性节点（共同位移）
+ *   4. 若配置了边界，拖拽结束后夹回边界内
  *
  * 由 useGraph 在创建图后调用一次；不需要解绑（图本身 destroy 时事件随之消失）。
  *
@@ -20,8 +36,10 @@ interface DraggableGraph extends GraphLike {
 export function attachEntityDragSync(
   graph: DraggableGraph,
   history: HistoryManager,
-  isForceActive?: () => boolean,
+  opts?: DragSyncOptions,
 ): void {
+  const isForceActive = opts?.isForceActive;
+  const getBoundary = opts?.getBoundary;
   graph.on("node:mouseenter", (e: any) => {
     graph.setItemState(e.item, "hover", true);
   });
@@ -88,6 +106,19 @@ export function attachEntityDragSync(
   graph.on("node:dragend", (e: any) => {
     const node = e.item;
     const nodeModel = node.getModel();
+
+    // 夹回边界内
+    const box = getBoundary?.();
+    if (box && nodeModel.x != null && nodeModel.y != null) {
+      const r = nodeRadius(nodeModel);
+      const margin = r + 4;
+      const cx = Math.max(box.minX + margin, Math.min(box.maxX - margin, nodeModel.x));
+      const cy = Math.max(box.minY + margin, Math.min(box.maxY - margin, nodeModel.y));
+      if (cx !== nodeModel.x || cy !== nodeModel.y) {
+        graph.updateItem(node, { x: cx, y: cy });
+      }
+    }
+
     if (nodeModel.type === "entity" && draggedEntity === node) {
       draggedEntity = null;
       relatedAttributes = [];
