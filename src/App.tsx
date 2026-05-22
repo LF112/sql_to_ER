@@ -37,6 +37,7 @@ const App = () => {
   const [lang, setLang] = useState<Language>(initialLang);
   const t = I18N[lang];
   const [showBackground, setShowBackground] = useState(true);
+  const [diagramFullscreen, setDiagramFullscreen] = useState(false);
   // 历史快照面板状态
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyItems, setHistoryItems] = useState<SnapshotRecord[]>([]);
@@ -246,6 +247,30 @@ const App = () => {
     return () => document.body.classList.remove("history-open");
   }, [historyOpen]);
 
+  // ESC 退出全屏
+  useEffect(() => {
+    if (!diagramFullscreen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setDiagramFullscreen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [diagramFullscreen]);
+
+  // 全屏切换时重设 G6 画布尺寸
+  useEffect(() => {
+    if (!containerRef.current || !graphRef.current) return;
+    const timer = setTimeout(() => {
+      if (containerRef.current && graphRef.current) {
+        graphRef.current.changeSize?.(
+          containerRef.current.offsetWidth,
+          containerRef.current.offsetHeight,
+        );
+      }
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [diagramFullscreen, containerRef, graphRef]);
+
   // 时间戳格式化（按当前语言显示本地化的"几秒前 / 时间戳"）
   const formatTimestamp = (ts: number | undefined) => {
     if (!ts) return "";
@@ -275,7 +300,7 @@ const App = () => {
   return (
     <>
       <div className="main-content">
-        <div className="input-section">
+        <div className="input-section" style={diagramFullscreen ? { display: "none" } : undefined}>
           <div className="card">
             <div
               className="card-header"
@@ -466,7 +491,7 @@ const App = () => {
           </div>
         </div>
 
-        <div className="output-section">
+        <div className={`output-section${diagramFullscreen ? " output-fullscreen" : ""}`}>
           <div className="card">
             <div className="card-header" style={{ flexWrap: "wrap", gap: "16px", height: "auto" }}>
               <div
@@ -778,6 +803,22 @@ const App = () => {
                     <EyeIcon width="0.9em" height="0.9em" />
                   ) : (
                     <EyeSlashIcon width="0.9em" height="0.9em" />
+                  )}
+                </button>
+
+                <span style={{ flex: 1 }} />
+
+                {/* ── 全屏 ── */}
+                <button
+                  className="btn btn-sm btn-secondary"
+                  onClick={() => setDiagramFullscreen(!diagramFullscreen)}
+                  title={diagramFullscreen ? "退出全屏" : "全屏预览 (Esc 退出)"}
+                  style={{ padding: "3px 7px", lineHeight: 1 }}
+                >
+                  {diagramFullscreen ? (
+                    <CompressIcon width="0.85em" height="0.85em" />
+                  ) : (
+                    <ExpandIcon width="0.85em" height="0.85em" />
                   )}
                 </button>
               </div>

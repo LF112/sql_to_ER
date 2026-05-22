@@ -188,6 +188,25 @@ body::before {
   animation: fadeInUp 0.9s var(--ease-default) 0.15s backwards;
 }
 
+.output-fullscreen {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9999 !important;
+  background: var(--app-bg);
+  padding: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.output-fullscreen .card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+}
+
 /* ═══════════════════════════════════════
    卡片
 ═══════════════════════════════════════ */
