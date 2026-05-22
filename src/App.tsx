@@ -19,13 +19,13 @@ import {
   LockIcon,
   LockOpenIcon,
   PaletteIcon,
+  UnderlineIcon,
 } from "./components/icons";
 import * as Exporter from "./exporter";
 import * as Snapshots from "./snapshots";
 import type { SnapshotRecord } from "./types";
 import { HistoryOverlay } from "./HistoryOverlay";
 import { useGraph, BOUNDARY_PRESETS, cmToPx, pxToCm } from "./hooks/useGraph";
-import type { BoundaryUnit } from "./hooks/useGraph";
 import { useExportButton } from "./hooks/useExportButton";
 import type { ExportFormat, ExportDoneCallback } from "./hooks/useExportButton";
 import { useUndoRedoShortcuts } from "./hooks/useUndoRedoShortcuts";
@@ -53,6 +53,7 @@ const App = () => {
     showComment,
     hideFields,
     hideRelations,
+    hidePkUnderline,
     forceOn,
     readOnly,
     boundaryWidth,
@@ -70,6 +71,7 @@ const App = () => {
     setShowComment,
     setHideFields,
     setHideRelations,
+    setHidePkUnderline,
     setForceOn,
     setReadOnly,
     setBoundaryWidth,
@@ -873,6 +875,13 @@ const App = () => {
                   title={hideRelations ? t.tipShowRels : t.tipHideRels}
                 >
                   <ArrowsLeftRightIcon />
+                </div>
+                <div
+                  className={`underline-toggle ${hidePkUnderline ? "active" : ""}`}
+                  onClick={() => setHidePkUnderline(!hidePkUnderline)}
+                  title={hidePkUnderline ? "显示主键下划线" : "隐藏主键下划线"}
+                >
+                  <UnderlineIcon />
                 </div>
                 {loading && (
                   <div className="loading-overlay">

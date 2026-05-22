@@ -14,12 +14,11 @@ const isEditableTarget = (el: EventTarget | null): boolean => {
   const tag = el.tagName;
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
   if (el.isContentEditable) return true;
-  if (el.closest && el.closest(".cm-editor")) return true;
-  return false;
+  return !!(el.closest && el.closest(".cm-editor"));
+
 };
 
 // 全局快捷键：Ctrl/Cmd+Z 撤销，Ctrl/Cmd+Y 或 Ctrl/Cmd+Shift+Z 重做。
-// 在 CodeMirror、原生 input/textarea、双击编辑框内不拦截（让原生撤销生效）。
 export function useUndoRedoShortcuts({ graphRef, historyRef }: Options) {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -36,7 +35,6 @@ export function useUndoRedoShortcuts({ graphRef, historyRef }: Options) {
 
       e.preventDefault();
       const onFinish = () => {
-        // 动画结束后修正菱形连线端点（位置已就绪）
         try {
           patchRelationshipLinkPoints(graph);
         } catch (_) {}

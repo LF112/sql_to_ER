@@ -85,6 +85,7 @@ export interface UseGraphResult {
   showComment: boolean;
   hideFields: boolean;
   hideRelations: boolean;
+  hidePkUnderline: boolean;
   forceOn: boolean;
   readOnly: boolean;
   boundaryWidth: number;
@@ -102,6 +103,7 @@ export interface UseGraphResult {
   setShowComment: (next: boolean) => void;
   setHideFields: (next: boolean) => void;
   setHideRelations: (next: boolean) => void;
+  setHidePkUnderline: (next: boolean) => void;
   setForceOn: (next: boolean) => void;
   setReadOnly: (next: boolean) => void;
   setBoundaryWidth: (next: number) => void;
@@ -155,6 +157,7 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
   const [boundaryRatioLock, setBoundaryRatioLockState] = useState(false);
   const boundaryRatioRef = useRef(1);
   const [hideRelations, setHideRelationsState] = useState(false);
+  const [hidePkUnderline, setHidePkUnderlineState] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [hasGraph, setHasGraph] = useState(false);
@@ -568,6 +571,23 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     }
   };
 
+  const setHidePkUnderline = (next: boolean) => {
+    setHidePkUnderlineState(next);
+    const graph = graphRef.current;
+    if (!graph || graph.destroyed) return;
+    graph.setAutoPaint(false);
+    graph.getNodes().forEach((n: any) => {
+      const m = n.getModel() as ERNodeModel;
+      if (m.nodeType !== "attribute" || m.keyType !== "pk") return;
+      const group = n.getContainer?.();
+      if (!group) return;
+      const underline = group.find?.((e: any) => e.get?.("name") === "attribute-underline");
+      if (underline) underline.attr({ opacity: next ? 0 : 1 });
+    });
+    graph.paint();
+    graph.setAutoPaint(true);
+  };
+
   const applyBoundaryRectToGraph = (w?: number, h?: number, v?: boolean) => {
     const graph = graphRef.current;
     if (!graph || graph.destroyed || !graph.get) return;
@@ -749,12 +769,16 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     const sel = selectionRef.current;
     if (!graph || graph.destroyed || !sel) return;
 
+    const removedNodeModels: Record<string, unknown>[] = [];
+    const removedEdgeModels: Record<string, unknown>[] = [];
+
     // 优先处理选中边
     const selectedEdgeId = sel.getSelectedEdgeId();
     if (selectedEdgeId) {
       const edge = graph.findById(selectedEdgeId);
       if (edge) {
-        historyRef.current.reset();
+        removedEdgeModels.push({ ...edge.getModel() });
+        historyRef.current.record(graph, { nodes: [], edges: removedEdgeModels });
         graph.removeItem(edge);
         sel.clearSelection();
       }
@@ -770,22 +794,16 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     const model = node.getModel() as ERNodeModel;
     const nodeType = model.nodeType;
 
-    // 删除操作后图结构已变，历史栈中的位置快照不再有效
-    historyRef.current.reset();
-
+    // 1. 收集所有待删项的模型
     graph.setAutoPaint(false);
 
     if (nodeType === "entity") {
-      // 1. 收集该实体的所有属性 ID
-      const attrIds = graph
-        .getNodes()
-        .filter((n) => {
-          const m = n.getModel() as ERNodeModel;
-          return m.nodeType === "attribute" && m.parentEntity === selectedId;
-        })
-        .map((n) => n.getModel().id);
+      const attrNodes = graph.getNodes().filter((n) => {
+        const m = n.getModel() as ERNodeModel;
+        return m.nodeType === "attribute" && m.parentEntity === selectedId;
+      });
+      attrNodes.forEach((n) => removedNodeModels.push({ ...n.getModel() }));
 
-      // 2. 收集与该实体相连的关系节点 ID
       const relNodeIds = new Set<string>();
       graph.getEdges().forEach((e) => {
         const m = e.getModel();
@@ -794,26 +812,58 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
           (m.source === selectedId || m.target === selectedId)
         ) {
           relNodeIds.add(m.source === selectedId ? m.target : m.source);
+          if (!removedEdgeModels.some((em) => em.id === m.id))
+            removedEdgeModels.push({ ...e.getModel() });
         }
       });
-
-      // 3. 先删属性
-      attrIds.forEach((id) => {
-        const item = graph.findById(id);
-        if (item) graph.removeItem(item);
+      graph.getEdges().forEach((e) => {
+        const m = e.getModel();
+        if (
+          (m.edgeType === "entity-relationship" || m.edgeType === "relationship-entity") &&
+          (relNodeIds.has(m.source) || relNodeIds.has(m.target)) &&
+          !removedEdgeModels.some((em) => em.id === m.id)
+        )
+          removedEdgeModels.push({ ...e.getModel() });
       });
-
-      // 4. 再删关系节点（G6 自动级联删除其连边）
       relNodeIds.forEach((id) => {
         const item = graph.findById(id);
-        if (item) graph.removeItem(item);
+        if (item) removedNodeModels.push({ ...(item as any).getModel() });
       });
-
-      // 5. 最后删实体本身
-      graph.removeItem(node);
+      graph.getEdges().forEach((e) => {
+        const m = e.getModel();
+        if (
+          (m.source === selectedId || m.target === selectedId) &&
+          !removedEdgeModels.some((em) => em.id === m.id)
+        )
+          removedEdgeModels.push({ ...e.getModel() });
+      });
+      removedNodeModels.push({ ...node.getModel() });
     } else {
-      graph.removeItem(node);
+      graph.getEdges().forEach((e) => {
+        const m = e.getModel();
+        if (m.source === selectedId || m.target === selectedId)
+          removedEdgeModels.push({ ...e.getModel() });
+      });
+      removedNodeModels.push({ ...node.getModel() });
     }
+
+    // 2. 记录历史（含结构数据供撤销恢复）
+    historyRef.current.record(graph, {
+      nodes: removedNodeModels,
+      edges: removedEdgeModels,
+    });
+
+    // 3. 执行删除
+    removedEdgeModels.forEach((em) => {
+      if (em.id) {
+        const e = graph.findById(em.id as string);
+        if (e) graph.removeItem(e);
+      }
+    });
+    removedNodeModels.forEach((nm) => {
+      const n = graph.findById(nm.id as string);
+      if (n) graph.removeItem(n);
+    });
 
     sel.clearSelection();
     graph.paint();
@@ -830,6 +880,7 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     showComment,
     hideFields,
     hideRelations,
+    hidePkUnderline,
     forceOn,
     readOnly,
     boundaryWidth,
@@ -846,6 +897,7 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     setShowComment,
     setHideFields,
     setHideRelations,
+    setHidePkUnderline,
     setForceOn,
     setReadOnly,
     setBoundaryWidth,
