@@ -7,9 +7,7 @@ export function detectLang(): Language {
     navigator.languages && navigator.languages.length
       ? navigator.languages
       : [navigator.language || "en"];
-  return list.some((l) => (l || "").toLowerCase().startsWith("zh"))
-    ? "zh"
-    : "en";
+  return list.some((l) => (l || "").toLowerCase().startsWith("zh")) ? "zh" : "en";
 }
 
 export function setupLanguageSwitch(initialLang = detectLang()) {

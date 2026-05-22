@@ -106,11 +106,7 @@ describe("parseDBML", () => {
         Note: 'order table'
       }
     `);
-    expect(result.tables[0].columns.map((c) => c.name)).toEqual([
-      "id",
-      "user_id",
-      "amount",
-    ]);
+    expect(result.tables[0].columns.map((c) => c.name)).toEqual(["id", "user_id", "amount"]);
   });
 
   it("parses multi-line Ref { ... } block with several relationships", () => {
@@ -253,11 +249,7 @@ Ref: 用户.属于 > 国家.编号
 Ref: 文章.作者 > 用户.编号
 `;
     const result = parseDBML(sample);
-    expect(result.tables.map((t) => t.name)).toEqual([
-      "用户",
-      "国家",
-      "文章",
-    ]);
+    expect(result.tables.map((t) => t.name)).toEqual(["用户", "国家", "文章"]);
     expect(result.tables[0].columns.map((c) => c.name)).toEqual([
       "编号",
       "用户名",
@@ -441,9 +433,7 @@ Ref: 文章.作者 > 用户.编号
         bio text
       }
     `);
-    const rel = result.relationships.find(
-      (r) => r.from === "user_profiles" && r.to === "users",
-    );
+    const rel = result.relationships.find((r) => r.from === "user_profiles" && r.to === "users");
     expect(rel).toBeDefined();
     expect(rel!.fromCardinality).toBe("1");
     expect(rel!.toCardinality).toBe("1");
@@ -460,9 +450,7 @@ Ref: 文章.作者 > 用户.编号
       }
       Ref: payments.order_id > orders.id
     `);
-    const rel = result.relationships.find(
-      (r) => r.from === "payments" && r.to === "orders",
-    );
+    const rel = result.relationships.find((r) => r.from === "payments" && r.to === "orders");
     expect(rel).toBeDefined();
     expect(rel!.fromCardinality).toBe("1");
     expect(rel!.toCardinality).toBe("1");

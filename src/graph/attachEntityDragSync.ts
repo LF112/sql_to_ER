@@ -52,10 +52,7 @@ export function attachEntityDragSync(
 
       graph.getNodes().forEach((n: any) => {
         const model = n.getModel();
-        if (
-          model.type === "attribute" &&
-          model.parentEntity === nodeModel.id
-        ) {
+        if (model.type === "attribute" && model.parentEntity === nodeModel.id) {
           relatedAttributes.push(n);
           dragStartPositions.set(model.id, { x: model.x, y: model.y });
         }

@@ -15,11 +15,7 @@ describe("parseSQLTables", () => {
 
     expect(result.tables).toHaveLength(1);
     expect(result.tables[0].name).toBe("orders");
-    expect(result.tables[0].columns.map((c) => c.name)).toEqual([
-      "id",
-      "user_id",
-      "amount",
-    ]);
+    expect(result.tables[0].columns.map((c) => c.name)).toEqual(["id", "user_id", "amount"]);
     expect(result.tables[0].primaryKeys).toContain("id");
     expect(result.tables[0].columns[0].comment).toBe("order id");
     expect(result.relationships).toEqual([
@@ -71,11 +67,7 @@ describe("parseSQLTables", () => {
       );
     `);
 
-    expect(result.tables[0].columns.map((c) => c.name)).toEqual([
-      "id",
-      "body",
-      "parent_id",
-    ]);
+    expect(result.tables[0].columns.map((c) => c.name)).toEqual(["id", "body", "parent_id"]);
     expect(result.relationships).toEqual([
       {
         from: "note",
@@ -130,10 +122,7 @@ describe("parseSQLTables", () => {
       );
     `);
     expect(result.tables[0].name).toBe("用户");
-    expect(result.tables[0].columns.map((c) => c.name)).toEqual([
-      "编号",
-      "姓名",
-    ]);
+    expect(result.tables[0].columns.map((c) => c.name)).toEqual(["编号", "姓名"]);
   });
 
   it("returns an empty result for blank input", () => {
@@ -153,10 +142,7 @@ describe("parseSQLTables", () => {
         INDEX idx_email (email)
       );
     `);
-    expect(result.tables[0].columns.map((c) => c.name)).toEqual([
-      "id",
-      "email",
-    ]);
+    expect(result.tables[0].columns.map((c) => c.name)).toEqual(["id", "email"]);
   });
 
   // Regression: 之前 stripSqlComments 把 `--` 误写成 `--`-vs-`--` 的双字符比较，
@@ -174,7 +160,7 @@ describe("parseSQLTables", () => {
   });
 
   // Regression: 引号包裹的保留字在前一段以 `--` 注释结尾时会丢失。
-  it("parses quoted reserved-word identifiers (\"select\", \"from\", \"primary\")", () => {
+  it('parses quoted reserved-word identifiers ("select", "from", "primary")', () => {
     const result = parseSQLTables(`
       -- Reserved-ish identifiers
       CREATE TABLE "select" (
@@ -186,11 +172,7 @@ describe("parseSQLTables", () => {
     `);
     expect(result.tables).toHaveLength(1);
     expect(result.tables[0].name).toBe("select");
-    expect(result.tables[0].columns.map((c) => c.name)).toEqual([
-      "from",
-      "where",
-      "group",
-    ]);
+    expect(result.tables[0].columns.map((c) => c.name)).toEqual(["from", "where", "group"]);
     expect(result.tables[0].primaryKeys).toEqual(["from"]);
   });
 
@@ -220,10 +202,7 @@ describe("parseSQLTables", () => {
       );
       GO
     `);
-    expect(result.tables.map((t) => t.name)).toEqual([
-      "crm.Account",
-      "crm.Invoice",
-    ]);
+    expect(result.tables.map((t) => t.name)).toEqual(["crm.Account", "crm.Invoice"]);
     expect(result.relationships).toEqual([
       {
         from: "crm.Invoice",

@@ -12,18 +12,10 @@ export interface SwitchControlProps {
  * 用来替代 antd Switch（少了一整个 antd 依赖 + dayjs）。
  * 视觉样式见 css/style.css 的 `.switch-control` 一节。
  */
-export const SwitchControl = ({
-  label,
-  checked,
-  onChange,
-  disabled,
-}: SwitchControlProps) => {
+export const SwitchControl = ({ label, checked, onChange, disabled }: SwitchControlProps) => {
   const id = useId();
   return (
-    <label
-      htmlFor={id}
-      className={`switch-control${disabled ? " is-disabled" : ""}`}
-    >
+    <label htmlFor={id} className={`switch-control${disabled ? " is-disabled" : ""}`}>
       <span className="switch-control-label inline-label">{label}</span>
       <input
         id={id}

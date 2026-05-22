@@ -65,7 +65,7 @@ function applySnapshot(
   if (!graph || graph.destroyed || !snap) return;
   const opts = options || {};
   const animate = opts.animate !== false;
-  const onFinish = typeof opts.onFinish === 'function' ? opts.onFinish : null;
+  const onFinish = typeof opts.onFinish === "function" ? opts.onFinish : null;
   const animator = animate ? animateNodesToTargets : null;
 
   // 标签直接更新；位置先收集成 targets 留给动画函数

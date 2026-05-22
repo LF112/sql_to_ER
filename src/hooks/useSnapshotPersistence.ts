@@ -40,9 +40,7 @@ export function useSnapshotPersistence({
   graphRef,
   containerRef,
 }: UseSnapshotPersistenceOptions): SnapshotPersistence {
-  const pendingSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
+  const pendingSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const captureSvgThumbnail = (): Promise<string | null> =>
     new Promise((resolve) => {
@@ -71,12 +69,9 @@ export function useSnapshotPersistence({
             let dataUrl: string;
             try {
               dataUrl =
-                "data:image/svg+xml;base64," +
-                btoa(unescape(encodeURIComponent(result.svgString)));
+                "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(result.svgString)));
             } catch (_) {
-              dataUrl =
-                "data:image/svg+xml;charset=utf-8," +
-                encodeURIComponent(result.svgString);
+              dataUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(result.svgString);
             }
             resolve(dataUrl);
           },
@@ -96,10 +91,7 @@ export function useSnapshotPersistence({
       // 输入框还停留在示例（中/英文均算）时不写入历史 ——
       // 否则首次打开页面什么都没改也会有一条快照。
       const trimmedInput = String(meta.inputText || "").trim();
-      if (
-        trimmedInput === I18N.zh.sample.trim() ||
-        trimmedInput === I18N.en.sample.trim()
-      ) {
+      if (trimmedInput === I18N.zh.sample.trim() || trimmedInput === I18N.en.sample.trim()) {
         resolve();
         return;
       }
@@ -139,10 +131,7 @@ export function useSnapshotPersistence({
             hideFields: meta.hideFields,
             nodes,
             thumbnail: thumb || (existing && existing.thumbnail) || null,
-            createdAt:
-              existing && existing.createdAt
-                ? existing.createdAt
-                : Date.now(),
+            createdAt: existing && existing.createdAt ? existing.createdAt : Date.now(),
             updatedAt: Date.now(),
           })
             .then(() => resolve())

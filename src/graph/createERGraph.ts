@@ -14,10 +14,7 @@ export interface CreateERGraphOptions {
  *
  * 拆出来是为了把 useGraph 里 ~100 行 G6 配置常量隔离开。
  */
-export function createERGraph({
-  container,
-  layoutCfg,
-}: CreateERGraphOptions): GraphLike {
+export function createERGraph({ container, layoutCfg }: CreateERGraphOptions): GraphLike {
   // G6.Graph 接收一份扁平的 cfg；shouldBegin 等回调里的 e 在 G6 4.x 没有公开类型。
   const graph = new (G6 as any).Graph({
     container,
@@ -38,6 +35,16 @@ export function createERGraph({
           },
         },
         // 滚轮缩放 / Ctrl+滚轮旋转由 useWheelZoomRotate 接管
+      ],
+      readonly: [
+        {
+          type: "drag-canvas",
+          allowDragOnItem: true,
+          enableOptimize: false,
+          shouldBegin(e: any) {
+            return !e.item || e.item.getType() !== "node";
+          },
+        },
       ],
     },
     layout: layoutCfg,
@@ -61,6 +68,12 @@ export function createERGraph({
     defaultEdgeConfig: { type: "line" },
     nodeStateStyles: {
       hover: { fill: "#e6f7ff", stroke: "#1890ff" },
+      selected: {
+        stroke: "#1890ff",
+        lineWidth: 3,
+        shadowColor: "rgba(24, 144, 255, 0.5)",
+        shadowBlur: 12,
+      },
     },
   });
 

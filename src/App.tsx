@@ -12,6 +12,8 @@ import {
   EyeIcon,
   EyeSlashIcon,
   ListUlIcon,
+  LockIcon,
+  LockOpenIcon,
   PaletteIcon,
 } from "./components/icons";
 import * as Exporter from "./exporter";
@@ -45,6 +47,7 @@ const App = () => {
     showComment,
     hideFields,
     forceOn,
+    readOnly,
     hasGraph,
     error,
     loading,
@@ -54,6 +57,7 @@ const App = () => {
     setShowComment,
     setHideFields,
     setForceOn,
+    setReadOnly,
     handleGenerate,
     handleForceAlign,
     handleArrangeLayout,
@@ -69,8 +73,7 @@ const App = () => {
       const detail = (e as CustomEvent<{ lang?: Language }>).detail;
       const nextLang = detail && detail.lang;
       if (!nextLang || nextLang === lang) return;
-      const usingDefaultSample =
-        inputText === I18N.zh.sample || inputText === I18N.en.sample;
+      const usingDefaultSample = inputText === I18N.zh.sample || inputText === I18N.en.sample;
       setLang(nextLang);
       if (usingDefaultSample) {
         const nextSample = I18N[nextLang].sample;
@@ -312,10 +315,7 @@ const App = () => {
                     // 长短标签一致（如英文）时不需要切换动效，直接渲染文本
                     t.btnGenerate
                   ) : (
-                    <span
-                      className="btn-primary-label-stack"
-                      data-compact={exportState !== "idle"}
-                    >
+                    <span className="btn-primary-label-stack" data-compact={exportState !== "idle"}>
                       <span className="label-long">{t.btnGenerate}</span>
                       <span className="label-short">{t.btnGenerateShort}</span>
                     </span>
@@ -337,11 +337,7 @@ const App = () => {
                       style={{
                         width: `${exportProgress}%`,
                         transitionDuration:
-                          exportProgress >= 100
-                            ? "220ms"
-                            : exportProgress > 0
-                              ? "2400ms"
-                              : "300ms",
+                          exportProgress >= 100 ? "220ms" : exportProgress > 0 ? "2400ms" : "300ms",
                         transitionTimingFunction:
                           exportProgress >= 100
                             ? "cubic-bezier(0.2, 0.7, 0.2, 1)"
@@ -455,10 +451,7 @@ const App = () => {
 
         <div className="output-section">
           <div className="card">
-            <div
-              className="card-header"
-              style={{ flexWrap: "wrap", gap: "16px", height: "auto" }}
-            >
+            <div className="card-header" style={{ flexWrap: "wrap", gap: "16px", height: "auto" }}>
               <div
                 style={{
                   display: "flex",
@@ -481,72 +474,50 @@ const App = () => {
                     flexWrap: "wrap",
                   }}
                 >
-                  <div
-                    className="legend-item"
-                    style={{ padding: "4px 10px", fontSize: "0.8rem" }}
-                  >
+                  <div className="legend-item" style={{ padding: "4px 10px", fontSize: "0.8rem" }}>
                     <div
                       style={{
                         width: "10px",
                         height: "10px",
                         borderRadius: "3px",
                         background: isColored ? "#e0f2fe" : "#fff",
-                        border: isColored
-                          ? "2px solid #0ea5e9"
-                          : "2px solid #1e293b",
+                        border: isColored ? "2px solid #0ea5e9" : "2px solid #1e293b",
                       }}
                     ></div>
                     <span>{t.legendEntity}</span>
                   </div>
-                  <div
-                    className="legend-item"
-                    style={{ padding: "4px 10px", fontSize: "0.8rem" }}
-                  >
+                  <div className="legend-item" style={{ padding: "4px 10px", fontSize: "0.8rem" }}>
                     <div
                       style={{
                         width: "10px",
                         height: "10px",
                         transform: "rotate(45deg)",
                         background: isColored ? "#f5f3ff" : "#fff",
-                        border: isColored
-                          ? "2px solid #8b5cf6"
-                          : "2px solid #1e293b",
+                        border: isColored ? "2px solid #8b5cf6" : "2px solid #1e293b",
                       }}
                     ></div>
-                    <span style={{ marginLeft: "4px" }}>
-                      {t.legendRelation}
-                    </span>
+                    <span style={{ marginLeft: "4px" }}>{t.legendRelation}</span>
                   </div>
-                  <div
-                    className="legend-item"
-                    style={{ padding: "4px 10px", fontSize: "0.8rem" }}
-                  >
+                  <div className="legend-item" style={{ padding: "4px 10px", fontSize: "0.8rem" }}>
                     <div
                       style={{
                         width: "10px",
                         height: "10px",
                         borderRadius: "50%",
                         background: isColored ? "#fff" : "#fff",
-                        border: isColored
-                          ? "2px solid #94a3b8"
-                          : "1px solid #1e293b",
+                        border: isColored ? "2px solid #94a3b8" : "1px solid #1e293b",
                       }}
                     ></div>
                     <span>{t.legendAttribute}</span>
                   </div>
-                  <div
-                    className="legend-item"
-                    style={{ padding: "4px 10px", fontSize: "0.8rem" }}
-                  >
+                  <div className="legend-item" style={{ padding: "4px 10px", fontSize: "0.8rem" }}>
                     <div
                       style={{
                         width: "10px",
                         height: "10px",
                         borderRadius: "50%",
                         background: isColored ? "#ecfdf5" : "#fff",
-                        border: isColored
-                          ? "2px solid #10b981"
-                          : "2px solid #1e293b",
+                        border: isColored ? "2px solid #10b981" : "2px solid #1e293b",
                       }}
                     ></div>
                     <span style={{ fontWeight: 600 }}>{t.legendPk}</span>
@@ -614,11 +585,7 @@ const App = () => {
                 >
                   <ListUlIcon />
                 </div>
-                <div
-                  className="history-toggle"
-                  onClick={openHistory}
-                  title={t.tipHistory}
-                >
+                <div className="history-toggle" onClick={openHistory} title={t.tipHistory}>
                   <ClockRotateLeftIcon />
                 </div>
                 <div
@@ -627,6 +594,13 @@ const App = () => {
                   title={forceOn ? t.tipForceOff : t.tipForceOn}
                 >
                   <CircleNodesIcon />
+                </div>
+                <div
+                  className={`readonly-toggle ${readOnly ? "active" : ""}`}
+                  onClick={() => setReadOnly(!readOnly)}
+                  title={readOnly ? t.tipEditable : t.tipReadOnly}
+                >
+                  {readOnly ? <LockIcon /> : <LockOpenIcon />}
                 </div>
                 {loading && (
                   <div className="loading-overlay">

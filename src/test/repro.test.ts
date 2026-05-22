@@ -13,10 +13,12 @@ describe("user-input repro", () => {
     `Table u { id int [pk] }\nTable p { uid int }\nRef: p.uid > u.id [note: 'fk note']`,
   ];
   for (const sql of inputs) {
-    it(`parses+builds: ${sql.slice(0,40)}`, () => {
+    it(`parses+builds: ${sql.slice(0, 40)}`, () => {
       let parsed = parseSQLTables(sql);
       if (parsed.tables.length === 0) parsed = parseDBML(sql);
-      expect(() => generateChenModelData(parsed.tables, parsed.relationships, true, "comment", false)).not.toThrow();
+      expect(() =>
+        generateChenModelData(parsed.tables, parsed.relationships, true, "comment", false),
+      ).not.toThrow();
     });
   }
 });

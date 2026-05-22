@@ -3,10 +3,7 @@ import { I18N, type Language } from "../i18n";
 import { detectLang } from "../language";
 import { parseSQLTables } from "../parser/sql";
 import { parseDBML } from "../parser/dbml";
-import {
-  generateChenModelData,
-  patchRelationshipLinkPoints,
-} from "../builder";
+import { generateChenModelData, patchRelationshipLinkPoints } from "../builder";
 import {
   applyInitialComponentPositions,
   arrangeLayout,
@@ -18,21 +15,15 @@ import { setupNodeDoubleClickEdit } from "../editor";
 import { createManager as createHistoryManager } from "../history";
 import * as Snapshots from "../snapshots";
 import * as AttributeLayout from "../attributeLayout";
-import {
-  createERGraph,
-  buildDefaultLayoutCfg,
-} from "../graph/createERGraph";
+import { createERGraph, buildDefaultLayoutCfg } from "../graph/createERGraph";
 import { attachEntityDragSync } from "../graph/attachEntityDragSync";
+import { attachNodeSelection } from "../graph/attachEntitySelection";
+import type { SelectionController } from "../graph/attachEntitySelection";
 import { attachForceLoop } from "../graph/forceLoop";
 import type { ForceLoopController } from "../graph/forceLoop";
 import { updateGraphStyles } from "../graph/updateGraphStyles";
 import { useSnapshotPersistence } from "./useSnapshotPersistence";
-import type {
-  ERNodeModel,
-  GraphLike,
-  ParsedTable,
-  SnapshotRecord,
-} from "../types";
+import type { ERNodeModel, GraphLike, GraphNodeLike, ParsedTable, SnapshotRecord } from "../types";
 import type { HistoryManager } from "../history";
 
 type Translation = (typeof I18N)[keyof typeof I18N];
@@ -62,6 +53,7 @@ export interface UseGraphResult {
   showComment: boolean;
   hideFields: boolean;
   forceOn: boolean;
+  readOnly: boolean;
   hasGraph: boolean;
   error: string | null;
   loading: boolean;
@@ -71,11 +63,13 @@ export interface UseGraphResult {
   setShowComment: (next: boolean) => void;
   setHideFields: (next: boolean) => void;
   setForceOn: (next: boolean) => void;
+  setReadOnly: (next: boolean) => void;
   setError: (next: string | null) => void;
   // commands
   handleGenerate: (opts?: GenerateOptions) => void;
   handleForceAlign: () => void;
   handleArrangeLayout: () => void;
+  deleteSelectedNode: () => void;
   restoreFromSnapshot: (snap: SnapshotRecord) => void;
   persistSnapshot: (meta: {
     id: string;
@@ -105,6 +99,7 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
   const [showComment, setShowCommentState] = useState(false);
   const [hideFields, setHideFieldsState] = useState(false);
   const [forceOn, setForceOnState] = useState(false);
+  const [readOnly, setReadOnlyState] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [hasGraph, setHasGraph] = useState(false);
@@ -116,12 +111,14 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
   const historyRef = useRef<HistoryManager>(createHistoryManager());
   const forceCtrlRef = useRef<ForceLoopController | null>(null);
   const forceOnRef = useRef(false);
+  const readOnlyRef = useRef(false);
+  const selectionRef = useRef<SelectionController | null>(null);
 
   // 持有最新的 t/state 供 handleGenerate 在 stale closure 之外读到。
   // mutator 同步走 next 显式参数；这个 ref 主要给"用户直接点 Generate 按钮"
   // 这种没有显式 opts 的路径用。
-  const stateRef = useRef({ inputText, isColored, showComment, hideFields, t });
-  stateRef.current = { inputText, isColored, showComment, hideFields, t };
+  const stateRef = useRef({ inputText, isColored, showComment, hideFields, readOnly, t });
+  stateRef.current = { inputText, isColored, showComment, hideFields, readOnly, t };
 
   const persistence = useSnapshotPersistence({ graphRef, containerRef });
   const { persistSnapshot, schedulePersist, cancelPendingPersist } = persistence;
@@ -176,6 +173,7 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
           graphRef.current.destroy?.();
           graphRef.current = null;
         }
+        selectionRef.current = null;
         historyRef.current.reset();
         tablesDataRef.current = null;
         lastInputRef.current = "";
@@ -223,12 +221,7 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
           }
         });
       } else {
-        applyInitialComponentPositions(
-          nodes,
-          edges,
-          containerRef.current,
-          0,
-        );
+        applyInitialComponentPositions(nodes, edges, containerRef.current, 0);
       }
 
       // Clear previous graph completely
@@ -301,12 +294,17 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
       // 双击编辑 + hover/drag 同步
       setupNodeDoubleClickEdit(graph as any, container, {
         onBeforeChange: () => historyRef.current.record(graph),
+        canEdit: () => !readOnlyRef.current,
       });
-      attachEntityDragSync(
-        graph as any,
-        historyRef.current,
-        () => forceOnRef.current,
-      );
+      attachEntityDragSync(graph as any, historyRef.current, () => forceOnRef.current);
+
+      // 节点选中（所有类型：实体 / 属性 / 关系）
+      selectionRef.current = attachNodeSelection(graph as any);
+
+      // 如果当前在只读模式下，切换到 readonly 模式
+      if (readOnlyRef.current) {
+        graph.setMode?.("readonly");
+      }
 
       // 持续力导向控制器：拖动期间根据斥力 + 连边引力重排其它节点
       const forceCtrl = attachForceLoop(graph as any);
@@ -325,15 +323,10 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
   const hideAttributesInGraph = () => {
     historyRef.current.reset();
     AttributeLayout.hideAttributes(
-      graphRef.current as unknown as Parameters<
-        typeof AttributeLayout.hideAttributes
-      >[0],
+      graphRef.current as unknown as Parameters<typeof AttributeLayout.hideAttributes>[0],
     );
   };
-  const showAttributesInGraph = (
-    showComment: boolean,
-    isColored: boolean,
-  ) => {
+  const showAttributesInGraph = (showComment: boolean, isColored: boolean) => {
     historyRef.current.reset();
     AttributeLayout.showAttributes({
       graph: graphRef.current as unknown as AttributeLayout.ShowAttributesOptions["graph"],
@@ -372,9 +365,7 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
       const nameLabel = m.nameLabel;
       const commentLabel = m.commentLabel;
       if (nameLabel === undefined && commentLabel === undefined) return;
-      const target = next
-        ? commentLabel || nameLabel || m.label
-        : nameLabel || m.label;
+      const target = next ? commentLabel || nameLabel || m.label : nameLabel || m.label;
       if (target !== undefined && target !== m.label) {
         graph.updateItem(node, { label: target });
       }
@@ -404,6 +395,14 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     if (forceCtrlRef.current) forceCtrlRef.current.setEnabled(next);
   };
 
+  const setReadOnly = (next: boolean) => {
+    readOnlyRef.current = next;
+    setReadOnlyState(next);
+    if (graphRef.current && !graphRef.current.destroyed) {
+      graphRef.current.setMode?.(next ? "readonly" : "default");
+    }
+  };
+
   const restoreFromSnapshot = (snap: SnapshotRecord) => {
     if (!snap || !snap.nodes) return;
     // 直接刷 React 状态 + 用 opts 覆盖触发一次 handleGenerate
@@ -412,10 +411,7 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     setShowCommentState(!!snap.showComment);
     setHideFieldsState(!!snap.hideFields);
 
-    const positionMap = new Map<
-      string,
-      { x?: number; y?: number; label?: string }
-    >();
+    const positionMap = new Map<string, { x?: number; y?: number; label?: string }>();
     snap.nodes.forEach((n) => {
       positionMap.set(n.id, { x: n.x, y: n.y, label: n.label });
     });
@@ -444,6 +440,7 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
       cancelPendingPersist();
       forceCtrlRef.current?.destroy();
       forceCtrlRef.current = null;
+      selectionRef.current = null;
       graphRef.current?.destroy?.();
       graphRef.current = null;
     };
@@ -464,6 +461,20 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  // Delete 键删除选中节点
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+      if (readOnlyRef.current) return;
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
+        return;
+      deleteSelectedNode();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   // ─── 命令 ────────────────────────────────────────────────
 
   const handleForceAlign = () => {
@@ -481,6 +492,70 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     arrangeLayout(graphRef.current);
   };
 
+  const deleteSelectedNode = () => {
+    const graph = graphRef.current;
+    const sel = selectionRef.current;
+    if (!graph || graph.destroyed || !sel) return;
+
+    const selectedId = sel.getSelectedNodeId();
+    if (!selectedId) return;
+
+    const node = graph.findById(selectedId) as GraphNodeLike | null;
+    if (!node) return;
+
+    const model = node.getModel() as ERNodeModel;
+    const nodeType = model.nodeType;
+
+    // 删除操作后图结构已变，历史栈中的位置快照不再有效
+    historyRef.current.reset();
+
+    graph.setAutoPaint(false);
+
+    if (nodeType === "entity") {
+      // 1. 收集该实体的所有属性 ID
+      const attrIds = graph
+        .getNodes()
+        .filter((n) => {
+          const m = n.getModel() as ERNodeModel;
+          return m.nodeType === "attribute" && m.parentEntity === selectedId;
+        })
+        .map((n) => n.getModel().id);
+
+      // 2. 收集与该实体相连的关系节点 ID
+      const relNodeIds = new Set<string>();
+      graph.getEdges().forEach((e) => {
+        const m = e.getModel();
+        if (
+          (m.edgeType === "entity-relationship" || m.edgeType === "relationship-entity") &&
+          (m.source === selectedId || m.target === selectedId)
+        ) {
+          relNodeIds.add(m.source === selectedId ? m.target : m.source);
+        }
+      });
+
+      // 3. 先删属性
+      attrIds.forEach((id) => {
+        const item = graph.findById(id);
+        if (item) graph.removeItem(item);
+      });
+
+      // 4. 再删关系节点（G6 自动级联删除其连边）
+      relNodeIds.forEach((id) => {
+        const item = graph.findById(id);
+        if (item) graph.removeItem(item);
+      });
+
+      // 5. 最后删实体本身
+      graph.removeItem(node);
+    } else {
+      graph.removeItem(node);
+    }
+
+    sel.clearSelection();
+    graph.paint();
+    graph.setAutoPaint(true);
+  };
+
   return {
     containerRef,
     graphRef,
@@ -491,6 +566,7 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     showComment,
     hideFields,
     forceOn,
+    readOnly,
     hasGraph,
     error,
     loading,
@@ -499,10 +575,12 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     setShowComment,
     setHideFields,
     setForceOn,
+    setReadOnly,
     setError,
     handleGenerate,
     handleForceAlign,
     handleArrangeLayout,
+    deleteSelectedNode,
     restoreFromSnapshot,
     persistSnapshot,
   };

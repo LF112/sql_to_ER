@@ -51,10 +51,7 @@ const stripQuotes = (s: string): string => {
 const skipString = (src: string, i: number): number => {
   if (src[i] === "'" && src[i + 1] === "'" && src[i + 2] === "'") {
     let j = i + 3;
-    while (
-      j < src.length &&
-      !(src[j] === "'" && src[j + 1] === "'" && src[j + 2] === "'")
-    ) {
+    while (j < src.length && !(src[j] === "'" && src[j + 1] === "'" && src[j + 2] === "'")) {
       j++;
     }
     return Math.min(src.length, j + 3);
@@ -256,7 +253,10 @@ const parseRefTarget = (raw: string): RefTarget | null => {
   // 仅去掉首尾游离的逗号（来自 splitTopLevelCommas 拆开内联 ref 时残留）。
   // 不要再剥圆括号 —— 复合外键 `table.(col_a, col_b)` 的右括号会被误吃，
   // 历史上写过 `^[(,]|[),]$` 是按"防御性清洗"思路写的，现在已无必要。
-  let cleaned = raw.trim().replace(/^,+|,+$/g, "").trim();
+  let cleaned = raw
+    .trim()
+    .replace(/^,+|,+$/g, "")
+    .trim();
   // 去掉尾部 `[delete: cascade, update: cascade]` 这类设置块。
   // Ref: a.b > c.d [...] 时，右目标会粘上 `[...]`，必须先剥掉再分段。
   const lb = indexOfUnquoted(cleaned, "[");
@@ -288,9 +288,7 @@ const parseRefTarget = (raw: string): RefTarget | null => {
   return { table: segs[segs.length - 2], column };
 };
 
-const parseInlineRef = (
-  refValue: string,
-): { op: string; target: RefTarget } | null => {
+const parseInlineRef = (refValue: string): { op: string; target: RefTarget } | null => {
   const m = refValue.match(/^\s*(<>|[<>\-])\s*(.+)$/);
   if (!m) return null;
   const target = parseRefTarget(m[2]);
@@ -375,9 +373,7 @@ interface ParsedRefStatement {
 
 // Ref 顶层 settings 块 `[delete: cascade, note: 'xxx']` 中的 note 是关系注释。
 // 拆出来：返回 (剥掉外层 [...] 后的 body, 提取到的 note 字符串)。
-const stripRefSettings = (
-  body: string,
-): { body: string; comment?: string } => {
+const stripRefSettings = (body: string): { body: string; comment?: string } => {
   let cleaned = body;
   let comment: string | undefined;
   const lb = indexOfUnquoted(cleaned, "[");
@@ -414,17 +410,14 @@ const parseRefBody = (rawBody: string): ParsedRefStatement | null => {
       const right = body.slice(i + 2).trim();
       const from = parseRefTarget(left);
       const to = parseRefTarget(right);
-      return from && to
-        ? { from, to, op: "<>", ...(comment ? { comment } : {}) }
-        : null;
+      return from && to ? { from, to, op: "<>", ...(comment ? { comment } : {}) } : null;
     }
     if (ch === "<" || ch === ">" || ch === "-") {
       const left = body.slice(0, i).trim();
       const right = body.slice(i + 1).trim();
       const from = parseRefTarget(left);
       const to = parseRefTarget(right);
-      if (from && to)
-        return { from, to, op: ch, ...(comment ? { comment } : {}) };
+      if (from && to) return { from, to, op: ch, ...(comment ? { comment } : {}) };
     }
     i++;
   }
@@ -432,14 +425,7 @@ const parseRefBody = (rawBody: string): ParsedRefStatement | null => {
 };
 
 interface TopStatement {
-  kind:
-    | "table"
-    | "ref"
-    | "refblock"
-    | "enum"
-    | "project"
-    | "tablegroup"
-    | "unknown";
+  kind: "table" | "ref" | "refblock" | "enum" | "project" | "tablegroup" | "unknown";
   header: string;
   body: string | null;
 }
@@ -527,10 +513,7 @@ const tokenizeTopLevel = (src: string): TopStatement[] => {
       // Ref 短句的关系运算符（仅在顶层、未在 [...] 设置块里时计数）。
       // 多行 `Ref name:\n  a > b [...]` 形式时：`:` 后面的换行不能立刻
       // 终止语句 —— 至少要等到运算符出现，才认为左 / 右目标都已就位。
-      if (
-        bracketDepth === 0 &&
-        (ch === "<" || ch === ">" || ch === "-")
-      ) {
+      if (bracketDepth === 0 && (ch === "<" || ch === ">" || ch === "-")) {
         seenOperator = true;
       }
       if (ch === "\n" && bracketDepth === 0 && seenOperator) {
@@ -568,9 +551,7 @@ const tokenizeTopLevel = (src: string): TopStatement[] => {
   return out;
 };
 
-const parseTableHeader = (
-  header: string,
-): { name: string; alias?: string } | null => {
+const parseTableHeader = (header: string): { name: string; alias?: string } | null => {
   // 去掉头部 [headercolor: #abc] 之类的 settings
   let h = header;
   const lb = indexOfUnquoted(h, "[");
@@ -579,10 +560,7 @@ const parseTableHeader = (
     if (rb !== -1) h = (h.slice(0, lb) + " " + h.slice(rb + 1)).trim();
   }
   const m = h.match(
-    new RegExp(
-      String.raw`^Table\s+(${QUALIFIED_IDENT})(?:\s+as\s+(${IDENT}))?\s*$`,
-      "i",
-    ),
+    new RegExp(String.raw`^Table\s+(${QUALIFIED_IDENT})(?:\s+as\s+(${IDENT}))?\s*$`, "i"),
   );
   if (!m) return null;
   return {
@@ -760,8 +738,7 @@ export const parseDBML = (dbml: string): ParseResult => {
     const col = fromTable.columns.find((c) => c.name === rel.label);
     if (!col) continue;
     const isOnlySinglePk =
-      fromTable.primaryKeys.length === 1 &&
-      fromTable.primaryKeys[0] === col.name;
+      fromTable.primaryKeys.length === 1 && fromTable.primaryKeys[0] === col.name;
     if (col.isUnique || isOnlySinglePk) {
       rel.fromCardinality = "1";
     }

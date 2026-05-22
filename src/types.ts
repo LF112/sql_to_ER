@@ -153,6 +153,7 @@ export interface GraphLike {
   getEdges(): GraphEdgeLike[];
   findById(id: string): GraphNodeLike | GraphEdgeLike | null;
   updateItem(item: unknown, model: Record<string, unknown>, stack?: boolean): void;
+  removeItem(item: unknown): void;
   setAutoPaint(enabled: boolean): void;
   paint(): void;
   refresh?(): void;
@@ -167,4 +168,5 @@ export interface GraphLike {
   clear?(): void;
   destroy?(): void;
   changeSize?(width: number, height: number): void;
+  setMode?(mode: string): void;
 }

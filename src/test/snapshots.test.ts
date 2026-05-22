@@ -9,16 +9,12 @@ describe("hashInput", () => {
   });
 
   it("is deterministic for the same input", () => {
-    expect(hashInput("CREATE TABLE t (id INT)")).toBe(
-      hashInput("CREATE TABLE t (id INT)"),
-    );
+    expect(hashInput("CREATE TABLE t (id INT)")).toBe(hashInput("CREATE TABLE t (id INT)"));
   });
 
   it("changes when the input changes", () => {
     expect(hashInput("a")).not.toBe(hashInput("b"));
-    expect(hashInput("Table users { id int }")).not.toBe(
-      hashInput("Table users { id INT }"),
-    );
+    expect(hashInput("Table users { id int }")).not.toBe(hashInput("Table users { id INT }"));
   });
 
   it("handles empty / nullish input without crashing", () => {
@@ -40,12 +36,7 @@ describe("hashInput", () => {
 });
 
 // 构造一个最小可用的 GraphLike，仅暴露 captureGraphSnapshot 用到的接口。
-const fakeNode = (
-  id: string,
-  x: number,
-  y: number,
-  label: string,
-): GraphNodeLike =>
+const fakeNode = (id: string, x: number, y: number, label: string): GraphNodeLike =>
   ({
     getModel: () => ({ id, x, y, label }),
     getBBox: () => ({
@@ -60,10 +51,7 @@ const fakeNode = (
     }),
   }) as unknown as GraphNodeLike;
 
-const fakeGraph = (
-  nodes: GraphNodeLike[],
-  destroyed = false,
-): GraphLike =>
+const fakeGraph = (nodes: GraphNodeLike[], destroyed = false): GraphLike =>
   ({
     destroyed,
     getNodes: () => nodes,
@@ -79,10 +67,7 @@ const fakeGraph = (
 
 describe("captureGraphSnapshot", () => {
   it("returns id/x/y/label for every node", () => {
-    const g = fakeGraph([
-      fakeNode("a", 10, 20, "Users"),
-      fakeNode("b", 30, 40, "Orders"),
-    ]);
+    const g = fakeGraph([fakeNode("a", 10, 20, "Users"), fakeNode("b", 30, 40, "Orders")]);
     expect(captureGraphSnapshot(g)).toEqual([
       { id: "a", x: 10, y: 20, label: "Users" },
       { id: "b", x: 30, y: 40, label: "Orders" },

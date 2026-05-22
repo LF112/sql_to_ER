@@ -158,9 +158,7 @@ const splitTopLevelComma = (body: string) => {
   return parts;
 };
 
-const extractMainBody = (
-  statement: string,
-): { body: string; suffix: string } | null => {
+const extractMainBody = (statement: string): { body: string; suffix: string } | null => {
   const openParenIndex = statement.indexOf("(");
   if (openParenIndex === -1) return null;
   let closeParenIndex = -1;
@@ -316,10 +314,8 @@ export const parseSQLTables = (sql: string): ParseResult => {
       // 默认多对一；若 FK 列在本表上是单列主键 / UNIQUE，推断为 1:1。
       // SQL 没有 DBML 的 `-` / `<>` 写法，全部从约束推断。
       const fkCol = columns.find((c) => c.name === fk.column);
-      const isOnlySinglePk =
-        primaryKeys.length === 1 && primaryKeys[0] === fk.column;
-      const fromCardinality: "1" | "N" =
-        fkCol?.isUnique || isOnlySinglePk ? "1" : "N";
+      const isOnlySinglePk = primaryKeys.length === 1 && primaryKeys[0] === fk.column;
+      const fromCardinality: "1" | "N" = fkCol?.isUnique || isOnlySinglePk ? "1" : "N";
       relationships.push({
         from: tableName,
         to: fk.referencedTable,

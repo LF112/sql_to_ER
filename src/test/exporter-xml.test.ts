@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildDrawioXML, escapeXml } from "../exporter";
-import type {
-  EREdgeModel,
-  ERNodeModel,
-  GraphEdgeLike,
-  GraphLike,
-  GraphNodeLike,
-} from "../types";
+import type { EREdgeModel, ERNodeModel, GraphEdgeLike, GraphLike, GraphNodeLike } from "../types";
 
 describe("escapeXml", () => {
   it("escapes the five canonical XML entities", () => {
@@ -46,10 +40,7 @@ const buildNode = (
 const buildEdge = (model: EREdgeModel): GraphEdgeLike =>
   ({ getModel: () => model }) as unknown as GraphEdgeLike;
 
-const buildGraph = (
-  nodes: GraphNodeLike[],
-  edges: GraphEdgeLike[],
-): GraphLike =>
+const buildGraph = (nodes: GraphNodeLike[], edges: GraphEdgeLike[]): GraphLike =>
   ({
     destroyed: false,
     getNodes: () => nodes,
@@ -130,9 +121,7 @@ describe("buildDrawioXML", () => {
         [],
       ),
     );
-    expect(xml).toContain(
-      'value="&lt;bad &amp; &quot;quoted&quot;&gt;"',
-    );
+    expect(xml).toContain('value="&lt;bad &amp; &quot;quoted&quot;&gt;"');
     expect(xml).not.toContain('value="<bad');
   });
 

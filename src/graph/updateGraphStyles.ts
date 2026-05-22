@@ -11,10 +11,7 @@ interface StylesUpdate {
  * 黑白 / 彩色样式批量切换。直接写到 G6 graph 上，不返回值。
  * 拆出来是为了让 useGraph 不必再持有这一大坨视觉常量。
  */
-export const updateGraphStyles = (
-  graphInstance: GraphLike | null,
-  colored: boolean,
-): void => {
+export const updateGraphStyles = (graphInstance: GraphLike | null, colored: boolean): void => {
   if (!graphInstance || graphInstance.destroyed) return;
 
   graphInstance.setAutoPaint(false);
@@ -105,9 +102,7 @@ export const updateGraphStyles = (
         fill: "#ffffff",
         stroke: "#1e293b",
         lineWidth:
-          model.keyType === "pk" ||
-          model.nodeType === "entity" ||
-          model.nodeType === "relationship"
+          model.keyType === "pk" || model.nodeType === "entity" || model.nodeType === "relationship"
             ? 2
             : 1,
         shadowBlur: 0,
@@ -127,10 +122,7 @@ export const updateGraphStyles = (
         styles.labelCfg = {
           style: {
             fill: "#1e293b",
-            fontWeight:
-              model.nodeType === "entity" || model.keyType === "pk"
-                ? "bold"
-                : "normal",
+            fontWeight: model.nodeType === "entity" || model.keyType === "pk" ? "bold" : "normal",
             fontFamily: "Poppins",
           },
         };

@@ -134,11 +134,7 @@ export const HistoryOverlay = ({
       // 否则原生 click 还没派发，targetScroll 已经在 pointermove 里被改动，
       // 视觉吸附会"吃掉"用户的点击。
       const tgt = e.target as HTMLElement | null;
-      if (
-        tgt &&
-        tgt.closest &&
-        tgt.closest("button, a, input, select, textarea, [data-no-drag]")
-      ) {
+      if (tgt && tgt.closest && tgt.closest("button, a, input, select, textarea, [data-no-drag]")) {
         return;
       }
       const s = stateRef.current;
@@ -238,8 +234,7 @@ export const HistoryOverlay = ({
         const highlightOffsetX = highlight * (isMobile ? 40 : 80);
         const highlightRotY = highlight * 15;
 
-        const trackX =
-          (isMobile ? -80 : -window.innerWidth * 0.18) + highlightOffsetX;
+        const trackX = (isMobile ? -80 : -window.innerWidth * 0.18) + highlightOffsetX;
         const trackY = 0;
         const trackZ = -rel * (isMobile ? 320 : 550);
         // 把轨道侧基础旋转从 -55° 收一点到 -42°，
@@ -265,9 +260,7 @@ export const HistoryOverlay = ({
         if (el) {
           el.style.transform = `translate3d(-50%, -50%, 0) translateX(${x}px) translateY(${y}px) translateZ(${z}px) rotateY(${rotY}deg) scale(${scale})`;
           el.style.opacity = String(opacity);
-          el.style.zIndex = String(
-            Math.round(1000 - Math.abs(rel) * 10 + shift * 100),
-          );
+          el.style.zIndex = String(Math.round(1000 - Math.abs(rel) * 10 + shift * 100));
           el.style.setProperty("--shift", String(shift));
         }
       }
@@ -315,9 +308,7 @@ export const HistoryOverlay = ({
       <div className="history-header">
         <ClockRotateLeftIcon />
         <span>{t.historyTitle}</span>
-        {items.length > 0 && (
-          <span className="history-count">· {items.length}</span>
-        )}
+        {items.length > 0 && <span className="history-count">· {items.length}</span>}
       </div>
       <button
         type="button"
@@ -356,8 +347,7 @@ export const HistoryOverlay = ({
           <div ref={trackRef} className="history-track">
             {items.map((snap, i) => {
               const entityCount = (snap.nodes || []).filter(
-                (n) =>
-                  typeof n.id === "string" && n.id.indexOf("entity-") === 0,
+                (n) => typeof n.id === "string" && n.id.indexOf("entity-") === 0,
               ).length;
               const tags: string[] = [];
               tags.push(snap.isColored ? t.historyColored : t.historyMono);
@@ -393,9 +383,7 @@ export const HistoryOverlay = ({
                   <div className="history-card-track-overlay" />
                   <div className="history-card-shade" />
                   <div className="history-card-meta">
-                    <span className="history-card-eyebrow">
-                      {formatTimestamp(snap.updatedAt)}
-                    </span>
+                    <span className="history-card-eyebrow">{formatTimestamp(snap.updatedAt)}</span>
                     <div className="history-card-tags">
                       {tags.map((tg, k) => (
                         <span key={k}>{tg}</span>
@@ -431,10 +419,7 @@ export const HistoryOverlay = ({
               );
             })}
           </div>
-          <div
-            className="history-hint"
-            style={{ opacity: hintVisible ? 1 : 0 }}
-          >
+          <div className="history-hint" style={{ opacity: hintVisible ? 1 : 0 }}>
             <ArrowsLeftRightIcon />
             <span>{t.historyHint}</span>
           </div>
