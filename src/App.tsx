@@ -7,6 +7,7 @@ import { patchRelationshipLinkPoints, registerCustomNodes } from "./builder";
 import { CodeEditor } from "./editor";
 import { SwitchControl } from "./components/SwitchControl";
 import {
+  ArrowsLeftRightIcon,
   CircleNodesIcon,
   ClockRotateLeftIcon,
   CompressIcon,
@@ -51,6 +52,7 @@ const App = () => {
     isColored,
     showComment,
     hideFields,
+    hideRelations,
     forceOn,
     readOnly,
     boundaryWidth,
@@ -67,6 +69,7 @@ const App = () => {
     setIsColored,
     setShowComment,
     setHideFields,
+    setHideRelations,
     setForceOn,
     setReadOnly,
     setBoundaryWidth,
@@ -863,6 +866,13 @@ const App = () => {
                   title={readOnly ? t.tipEditable : t.tipReadOnly}
                 >
                   {readOnly ? <LockIcon /> : <LockOpenIcon />}
+                </div>
+                <div
+                  className={`rels-toggle ${hideRelations ? "active" : ""}`}
+                  onClick={() => setHideRelations(!hideRelations)}
+                  title={hideRelations ? t.tipShowRels : t.tipHideRels}
+                >
+                  <ArrowsLeftRightIcon />
                 </div>
                 {loading && (
                   <div className="loading-overlay">

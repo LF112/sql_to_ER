@@ -15,6 +15,7 @@ import { setupNodeDoubleClickEdit } from "../editor";
 import { createManager as createHistoryManager } from "../history";
 import * as Snapshots from "../snapshots";
 import * as AttributeLayout from "../attributeLayout";
+import { hideRelationships, showRelationships } from "../graph/relationshipToggle";
 import { createERGraph, buildDefaultLayoutCfg } from "../graph/createERGraph";
 import type { LayoutBoundary } from "../graph/createERGraph";
 import { updateBoundaryRect, clampNodesToBoundary, boundaryToBox } from "../graph/boundaryRect";
@@ -44,7 +45,14 @@ import { attachForceLoop } from "../graph/forceLoop";
 import type { ForceLoopController } from "../graph/forceLoop";
 import { updateGraphStyles } from "../graph/updateGraphStyles";
 import { useSnapshotPersistence } from "./useSnapshotPersistence";
-import type { ERNodeModel, GraphLike, GraphNodeLike, ParsedTable, SnapshotRecord } from "../types";
+import type {
+  ERNodeModel,
+  GraphLike,
+  GraphNodeLike,
+  ParsedRelationship,
+  ParsedTable,
+  SnapshotRecord,
+} from "../types";
 import type { HistoryManager } from "../history";
 
 type Translation = (typeof I18N)[keyof typeof I18N];
@@ -76,6 +84,7 @@ export interface UseGraphResult {
   isColored: boolean;
   showComment: boolean;
   hideFields: boolean;
+  hideRelations: boolean;
   forceOn: boolean;
   readOnly: boolean;
   boundaryWidth: number;
@@ -92,6 +101,7 @@ export interface UseGraphResult {
   setIsColored: (next: boolean) => void;
   setShowComment: (next: boolean) => void;
   setHideFields: (next: boolean) => void;
+  setHideRelations: (next: boolean) => void;
   setForceOn: (next: boolean) => void;
   setReadOnly: (next: boolean) => void;
   setBoundaryWidth: (next: number) => void;
@@ -144,6 +154,7 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
   const [boundaryConstrain, setBoundaryConstrainState] = useState(true);
   const [boundaryRatioLock, setBoundaryRatioLockState] = useState(false);
   const boundaryRatioRef = useRef(1);
+  const [hideRelations, setHideRelationsState] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [hasGraph, setHasGraph] = useState(false);
@@ -152,6 +163,7 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
   const graphRef = useRef<GraphLike | null>(null);
   const lastInputRef = useRef("");
   const tablesDataRef = useRef<ParsedTable[] | null>(null);
+  const relationshipsRef = useRef<ParsedRelationship[] | null>(null);
   const historyRef = useRef<HistoryManager>(createHistoryManager());
   const forceCtrlRef = useRef<ForceLoopController | null>(null);
   const forceOnRef = useRef(false);
@@ -172,6 +184,7 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     isColored,
     showComment,
     hideFields,
+    hideRelations,
     readOnly,
     boundaryWidth,
     boundaryHeight,
@@ -183,6 +196,7 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     isColored,
     showComment,
     hideFields,
+    hideRelations,
     readOnly,
     boundaryWidth,
     boundaryHeight,
@@ -270,6 +284,7 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
         selectionRef.current = null;
         historyRef.current.reset();
         tablesDataRef.current = null;
+        relationshipsRef.current = null;
         lastInputRef.current = "";
         setHasGraph(false);
         setError(cur.t.errNoTable);
@@ -295,6 +310,7 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
       lastInputRef.current = trimmed;
 
       tablesDataRef.current = tables;
+      relationshipsRef.current = relationships;
 
       const { nodes, edges } = generateChenModelData(
         tables,
@@ -522,6 +538,28 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     if (forceCtrlRef.current) forceCtrlRef.current.setEnabled(next);
   };
 
+  const setHideRelations = (next: boolean) => {
+    setHideRelationsState(next);
+    if (!hasGraph || !graphRef.current || graphRef.current.destroyed) return;
+    disableForceIfOn();
+    historyRef.current.reset();
+    if (next) {
+      hideRelationships(
+        graphRef.current as unknown as Parameters<typeof hideRelationships>[0],
+        tablesDataRef.current,
+        relationshipsRef.current,
+      );
+    } else {
+      showRelationships({
+        graph: graphRef.current as unknown as Parameters<typeof showRelationships>[0]["graph"],
+        tables: tablesDataRef.current,
+        relationships: relationshipsRef.current,
+        labelMode: stateRef.current.showComment ? "comment" : "name",
+        isColored: stateRef.current.isColored,
+      });
+    }
+  };
+
   const setReadOnly = (next: boolean) => {
     readOnlyRef.current = next;
     setReadOnlyState(next);
@@ -711,6 +749,18 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     const sel = selectionRef.current;
     if (!graph || graph.destroyed || !sel) return;
 
+    // 优先处理选中边
+    const selectedEdgeId = sel.getSelectedEdgeId();
+    if (selectedEdgeId) {
+      const edge = graph.findById(selectedEdgeId);
+      if (edge) {
+        historyRef.current.reset();
+        graph.removeItem(edge);
+        sel.clearSelection();
+      }
+      return;
+    }
+
     const selectedId = sel.getSelectedNodeId();
     if (!selectedId) return;
 
@@ -779,6 +829,7 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     isColored,
     showComment,
     hideFields,
+    hideRelations,
     forceOn,
     readOnly,
     boundaryWidth,
@@ -794,6 +845,7 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     setIsColored,
     setShowComment,
     setHideFields,
+    setHideRelations,
     setForceOn,
     setReadOnly,
     setBoundaryWidth,

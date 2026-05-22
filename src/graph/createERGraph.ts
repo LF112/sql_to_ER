@@ -64,6 +64,12 @@ export function createERGraph({ container, layoutCfg }: CreateERGraphOptions): G
     },
     edgeStateStyles: {
       hover: { stroke: "#1890ff", lineWidth: 2 },
+      selected: {
+        stroke: "#1890ff",
+        lineWidth: 3,
+        shadowColor: "rgba(24, 144, 255, 0.5)",
+        shadowBlur: 6,
+      },
     },
     defaultEdgeConfig: { type: "line" },
     nodeStateStyles: {
