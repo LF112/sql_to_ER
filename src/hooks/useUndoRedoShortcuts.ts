@@ -15,7 +15,6 @@ const isEditableTarget = (el: EventTarget | null): boolean => {
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
   if (el.isContentEditable) return true;
   return !!(el.closest && el.closest(".cm-editor"));
-
 };
 
 // 全局快捷键：Ctrl/Cmd+Z 撤销，Ctrl/Cmd+Y 或 Ctrl/Cmd+Shift+Z 重做。

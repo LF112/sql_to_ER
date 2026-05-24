@@ -46,6 +46,7 @@ import type { ForceLoopController } from "../graph/forceLoop";
 import { updateGraphStyles } from "../graph/updateGraphStyles";
 import { useSnapshotPersistence } from "./useSnapshotPersistence";
 import type {
+  EREdgeModel,
   ERNodeModel,
   GraphLike,
   GraphNodeLike,
@@ -62,11 +63,53 @@ export interface GenerateOptions {
   isColored?: boolean;
   showComment?: boolean;
   hideFields?: boolean;
+  hideRelations?: boolean;
+  hidePkUnderline?: boolean;
+  forceOn?: boolean;
+  readOnly?: boolean;
   boundaryWidth?: number;
   boundaryHeight?: number;
   showBoundary?: boolean;
-  positionMap?: Map<string, { x?: number; y?: number; label?: string }> | null;
+  boundaryUnit?: BoundaryUnit;
+  boundaryConstrain?: boolean;
+  boundaryRatioLock?: boolean;
+  view?: ExportedGraphView | null;
+  graphData?: { nodes: ERNodeModel[]; edges: EREdgeModel[] } | null;
+  positionMap?: Map<string, Partial<ERNodeModel>> | null;
+  edgeMap?: Map<string, Partial<EREdgeModel>> | null;
 }
+
+interface ExportedGraphView {
+  zoom?: number;
+  matrix?: number[] | null;
+}
+
+interface ExportedGraphData {
+  v: 2;
+  input: string;
+  nodes: ERNodeModel[];
+  edges: EREdgeModel[];
+  settings: {
+    isColored: boolean;
+    showComment: boolean;
+    hideFields: boolean;
+    hideRelations: boolean;
+    hidePkUnderline: boolean;
+    forceOn: boolean;
+    readOnly: boolean;
+  };
+  boundary: {
+    width: number;
+    height: number;
+    visible: boolean;
+    unit: BoundaryUnit;
+    constrain: boolean;
+    ratioLock: boolean;
+  };
+  view: ExportedGraphView;
+}
+
+const cloneGraphModel = <T>(model: T): T => JSON.parse(JSON.stringify(model)) as T;
 
 export interface UseGraphOptions {
   t: Translation;
@@ -119,6 +162,8 @@ export interface UseGraphResult {
   handleForceAlign: () => void;
   handleArrangeLayout: () => void;
   deleteSelectedNode: () => void;
+  exportToClipboard: () => Promise<void>;
+  importFromText: (text: string) => void;
   restoreFromSnapshot: (snap: SnapshotRecord) => void;
   persistSnapshot: (meta: {
     id: string;
@@ -188,10 +233,15 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     showComment,
     hideFields,
     hideRelations,
+    hidePkUnderline,
+    forceOn,
     readOnly,
     boundaryWidth,
     boundaryHeight,
     showBoundary,
+    boundaryUnit,
+    boundaryConstrain,
+    boundaryRatioLock,
     t,
   });
   stateRef.current = {
@@ -200,10 +250,15 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     showComment,
     hideFields,
     hideRelations,
+    hidePkUnderline,
+    forceOn,
     readOnly,
     boundaryWidth,
     boundaryHeight,
     showBoundary,
+    boundaryUnit,
+    boundaryConstrain,
+    boundaryRatioLock,
     t,
   };
 
@@ -239,10 +294,26 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     const useIsColored = genOpts.isColored ?? cur.isColored;
     const useShowComment = genOpts.showComment ?? cur.showComment;
     const useHideFields = genOpts.hideFields ?? cur.hideFields;
+    const useHideRelations = genOpts.hideRelations ?? cur.hideRelations;
+    const useHidePkUnderline = genOpts.hidePkUnderline ?? cur.hidePkUnderline;
+    const useForceOn = genOpts.forceOn ?? cur.forceOn;
+    const useReadOnly = genOpts.readOnly ?? cur.readOnly;
     const useBoundaryWidth = genOpts.boundaryWidth ?? cur.boundaryWidth;
     const useBoundaryHeight = genOpts.boundaryHeight ?? cur.boundaryHeight;
     const useShowBoundary = genOpts.showBoundary ?? cur.showBoundary;
+    const useBoundaryUnit = genOpts.boundaryUnit ?? cur.boundaryUnit;
+    const useBoundaryConstrain = genOpts.boundaryConstrain ?? cur.boundaryConstrain;
+    const useBoundaryRatioLock = genOpts.boundaryRatioLock ?? cur.boundaryRatioLock;
+    const restoreView = genOpts.view ?? null;
+    const restoreGraphData = genOpts.graphData ?? null;
     const positionMap = genOpts.positionMap ?? null;
+    const edgeMap = genOpts.edgeMap ?? null;
+
+    boundaryConstrainRef.current = useBoundaryConstrain;
+    readOnlyRef.current = useReadOnly;
+    if (useBoundaryWidth > 0 && useBoundaryHeight > 0) {
+      boundaryRatioRef.current = useBoundaryWidth / useBoundaryHeight;
+    }
 
     // 同步 boundaryRef 供 force loop / drag sync 等闭包读取最新值
     boundaryRef.current = {
@@ -257,6 +328,7 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
       // 重新生成 / 历史恢复都会重建图，先把持续力导向开关复位关闭，避免
       // 旧 controller 的状态意外延续到新图。
       disableForceIfOn();
+      forceOnRef.current = useForceOn;
 
       const trimmed = String(useInputText || "").trim();
       if (!trimmed) {
@@ -311,6 +383,20 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
       }
 
       lastInputRef.current = trimmed;
+      setInputTextState(trimmed);
+      setIsColoredState(useIsColored);
+      setShowCommentState(useShowComment);
+      setHideFieldsState(useHideFields);
+      setHideRelationsState(useHideRelations);
+      setHidePkUnderlineState(useHidePkUnderline);
+      setForceOnState(useForceOn);
+      setReadOnlyState(useReadOnly);
+      setBoundaryWidthState(useBoundaryWidth);
+      setBoundaryHeightState(useBoundaryHeight);
+      setShowBoundaryState(useShowBoundary);
+      setBoundaryUnitState(useBoundaryUnit);
+      setBoundaryConstrainState(useBoundaryConstrain);
+      setBoundaryRatioLockState(useBoundaryRatioLock);
 
       tablesDataRef.current = tables;
       relationshipsRef.current = relationships;
@@ -323,18 +409,32 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
         useHideFields,
       );
 
-      if (positionMap) {
+      if (restoreGraphData) {
+        nodes.splice(0, nodes.length, ...restoreGraphData.nodes.map((n) => cloneGraphModel(n)));
+        edges.splice(0, edges.length, ...restoreGraphData.edges.map((e) => cloneGraphModel(e)));
+      }
+
+      if (restoreGraphData) {
+        // 已使用导出的完整图模型，保留原始坐标与样式。
+      } else if (positionMap) {
         // 恢复历史快照路径：直接按快照位置/标签覆盖
         nodes.forEach((n: ERNodeModel) => {
           const p = positionMap.get(n.id);
           if (p) {
-            if (typeof p.x === "number") n.x = p.x;
-            if (typeof p.y === "number") n.y = p.y;
-            if (p.label !== undefined && p.label !== null) n.label = p.label;
+            Object.assign(n, p, { id: n.id });
           }
         });
       } else {
         applyInitialComponentPositions(nodes, edges, containerRef.current, 0);
+      }
+
+      if (!restoreGraphData && edgeMap) {
+        edges.forEach((e: EREdgeModel) => {
+          const id = e.id;
+          if (!id) return;
+          const restored = edgeMap.get(id);
+          if (restored) Object.assign(e, restored, { id });
+        });
       }
 
       // Clear previous graph completely
@@ -362,7 +462,7 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
           centerY: 300,
         };
       }
-      if (!positionMap) {
+      if (!positionMap && !restoreGraphData) {
         layoutCfg = buildDefaultLayoutCfg(
           container.offsetWidth,
           {
@@ -401,11 +501,36 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
       graph.data({ nodes, edges });
       graph.render();
 
-      updateGraphStyles(graph, useIsColored);
+      if (!restoreGraphData) updateGraphStyles(graph, useIsColored);
       patchRelationshipLinkPoints(graph);
 
-      // 初始渲染后使用平滑动画调整视图
-      setTimeout(() => smoothFitView(graph, 600, "easeOutQuart"), 200);
+      if (useHideRelations && !restoreGraphData) {
+        hideRelationships(
+          graph as unknown as Parameters<typeof hideRelationships>[0],
+          tablesDataRef.current,
+          relationshipsRef.current,
+        );
+      }
+      if (useHidePkUnderline) {
+        graph.setAutoPaint(false);
+        graph.getNodes().forEach((n: any) => {
+          const m = n.getModel() as ERNodeModel;
+          if (m.nodeType !== "attribute" || m.keyType !== "pk") return;
+          const group = n.getContainer?.();
+          const underline = group?.find?.((e: any) => e.get?.("name") === "attribute-underline");
+          if (underline) underline.attr({ opacity: 0 });
+        });
+        graph.paint();
+        graph.setAutoPaint(true);
+      }
+
+      if (restoreView?.matrix && restoreView.matrix.length === 9) {
+        graph.get("group")?.setMatrix?.(restoreView.matrix);
+        graph.paint();
+      } else {
+        // 初始渲染后使用平滑动画调整视图
+        setTimeout(() => smoothFitView(graph, 600, "easeOutQuart"), 200);
+      }
 
       // 等画面安顿好后再为本次输入存一份"初始/恢复后"快照。
       // 力布局 + smoothFitView 总共 ~1s；2.5s 比较稳妥。
@@ -435,7 +560,7 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
       selectionRef.current = attachNodeSelection(graph as any);
 
       // 如果当前在只读模式下，切换到 readonly 模式
-      if (readOnlyRef.current) {
+      if (useReadOnly) {
         graph.setMode?.("readonly");
       }
 
@@ -446,7 +571,7 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
           height: useBoundaryHeight || 600,
           centerX: container.offsetWidth / 2,
           centerY: 300,
-          visible: !!useShowBoundary,
+          visible: !!useShowBoundary && useBoundaryWidth > 0 && useBoundaryHeight > 0,
         });
       }
 
@@ -455,7 +580,7 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
         getBoundary: getBoundaryBox,
       });
       forceCtrlRef.current = forceCtrl;
-      if (forceOnRef.current) forceCtrl.setEnabled(true);
+      if (useForceOn && !positionMap) forceCtrl.setEnabled(true);
     } catch (e) {
       console.error("SQL Parsing error:", e);
       const msg = e instanceof Error ? e.message : String(e);
@@ -679,7 +804,7 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     setShowCommentState(!!snap.showComment);
     setHideFieldsState(!!snap.hideFields);
 
-    const positionMap = new Map<string, { x?: number; y?: number; label?: string }>();
+    const positionMap = new Map<string, Partial<ERNodeModel>>();
     snap.nodes.forEach((n) => {
       positionMap.set(n.id, { x: n.x, y: n.y, label: n.label });
     });
@@ -870,6 +995,89 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     graph.setAutoPaint(true);
   };
 
+  const exportToClipboard = async () => {
+    const graph = graphRef.current;
+    const cur = stateRef.current;
+    const data: ExportedGraphData = {
+      v: 2,
+      input: lastInputRef.current,
+      nodes: graph?.getNodes().map((n) => cloneGraphModel(n.getModel() as ERNodeModel)) ?? [],
+      edges: graph?.getEdges().map((e) => cloneGraphModel(e.getModel() as EREdgeModel)) ?? [],
+      settings: {
+        isColored: cur.isColored,
+        showComment: cur.showComment,
+        hideFields: cur.hideFields,
+        hideRelations: cur.hideRelations,
+        hidePkUnderline: cur.hidePkUnderline,
+        forceOn: forceOnRef.current,
+        readOnly: readOnlyRef.current,
+      },
+      boundary: {
+        width: boundaryRef.current.width,
+        height: boundaryRef.current.height,
+        visible: boundaryRef.current.visible,
+        unit: cur.boundaryUnit,
+        constrain: boundaryConstrainRef.current,
+        ratioLock: cur.boundaryRatioLock,
+      },
+      view: {
+        zoom: graph?.getZoom?.() ?? 1,
+        matrix: graph?.get?.("group")?.getMatrix?.() ?? null,
+      },
+    };
+    await navigator.clipboard.writeText(JSON.stringify(data));
+  };
+
+  const importFromText = (text: string) => {
+    const data = JSON.parse(text);
+    if (!data || (data.v !== 1 && data.v !== 2)) throw new Error("Invalid import data");
+
+    const settings = data.settings ?? {};
+    const boundary = data.boundary ?? {};
+
+    // 构建位置映射
+    const positionMap = new Map<string, Partial<ERNodeModel>>();
+    if (Array.isArray(data.nodes)) {
+      data.nodes.forEach((n: any) => {
+        if (n?.id) positionMap.set(n.id, cloneGraphModel(n));
+      });
+    }
+    const edgeMap = new Map<string, Partial<EREdgeModel>>();
+    if (Array.isArray(data.edges)) {
+      data.edges.forEach((e: any) => {
+        if (e?.id) edgeMap.set(e.id, cloneGraphModel(e));
+      });
+    }
+
+    // 重新生成
+    handleGenerate({
+      inputText: data.input || "",
+      isColored: settings.isColored !== false,
+      showComment: !!settings.showComment,
+      hideFields: !!settings.hideFields,
+      hideRelations: !!settings.hideRelations,
+      hidePkUnderline: !!settings.hidePkUnderline,
+      forceOn: !!settings.forceOn,
+      readOnly: !!settings.readOnly,
+      boundaryWidth: boundary.width ?? 0,
+      boundaryHeight: boundary.height ?? 0,
+      showBoundary: !!boundary.visible,
+      boundaryUnit: boundary.unit === "cm" ? "cm" : "px",
+      boundaryConstrain: boundary.constrain !== false,
+      boundaryRatioLock: !!boundary.ratioLock,
+      view: data.v === 2 ? data.view : null,
+      graphData:
+        data.v === 2 && Array.isArray(data.nodes) && Array.isArray(data.edges)
+          ? {
+              nodes: data.nodes.map((n: ERNodeModel) => cloneGraphModel(n)),
+              edges: data.edges.map((e: EREdgeModel) => cloneGraphModel(e)),
+            }
+          : null,
+      positionMap: positionMap.size > 0 ? positionMap : null,
+      edgeMap: edgeMap.size > 0 ? edgeMap : null,
+    });
+  };
+
   return {
     containerRef,
     graphRef,
@@ -912,6 +1120,8 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     handleForceAlign,
     handleArrangeLayout,
     deleteSelectedNode,
+    exportToClipboard,
+    importFromText,
     restoreFromSnapshot,
     persistSnapshot,
   };

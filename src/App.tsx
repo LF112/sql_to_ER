@@ -11,6 +11,7 @@ import {
   CircleNodesIcon,
   ClockRotateLeftIcon,
   CompressIcon,
+  CopyIcon,
   ExpandIcon,
   EyeIcon,
   EyeSlashIcon,
@@ -19,6 +20,7 @@ import {
   LockIcon,
   LockOpenIcon,
   PaletteIcon,
+  PasteIcon,
   UnderlineIcon,
 } from "./components/icons";
 import * as Exporter from "./exporter";
@@ -42,6 +44,9 @@ const App = () => {
   // 历史快照面板状态
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyItems, setHistoryItems] = useState<SnapshotRecord[]>([]);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importError, setImportError] = useState<string | null>(null);
 
   const {
     containerRef,
@@ -84,9 +89,42 @@ const App = () => {
     handleGenerate,
     handleForceAlign,
     handleArrangeLayout,
+    exportToClipboard,
+    importFromText,
     restoreFromSnapshot,
     persistSnapshot,
   } = useGraph({ t, initialLang });
+
+  const openImportModal = () => {
+    setImportText("");
+    setImportError(null);
+    setImportModalOpen(true);
+  };
+
+  const closeImportModal = () => {
+    setImportModalOpen(false);
+    setImportError(null);
+  };
+
+  const handleImportFromModal = () => {
+    const text = importText.trim();
+    if (!text) {
+      setImportError(
+        lang === "zh" ? "请先粘贴导出的 JSON 数据。" : "Paste exported JSON data first.",
+      );
+      return;
+    }
+
+    try {
+      importFromText(text);
+      closeImportModal();
+    } catch (e) {
+      console.warn("import graph data failed", e);
+      setImportError(
+        lang === "zh" ? "导入失败，请检查数据格式。" : "Import failed. Check the data format.",
+      );
+    }
+  };
 
   // 监听语言切换事件（由顶部 vanilla 脚本派发）。
   // 用户尚未修改示例时连同示例一起替换并立即重新生成；
@@ -608,217 +646,151 @@ const App = () => {
               }}
             >
               <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  padding: "5px 12px",
-                  borderBottom: "1px solid var(--app-border)",
-                  background: "var(--app-bg-overlay)",
-                  flexShrink: 0,
-                }}
+                className="diagram-toolbar"
+                role="toolbar"
+                aria-label="ER diagram preview toolbar"
               >
                 {/* ── 尺寸输入组 ── */}
-                <span
-                  style={{
-                    fontSize: "0.7rem",
-                    fontWeight: 700,
-                    color: "var(--app-fg-secondary)",
-                    userSelect: "none",
-                  }}
-                >
-                  W
-                </span>
-                <input
-                  type="number"
-                  min="0"
-                  max={boundaryUnit === "cm" ? "200" : "10000"}
-                  step={boundaryUnit === "cm" ? "0.5" : "100"}
-                  value={
-                    boundaryUnit === "cm"
-                      ? boundaryWidth > 0
-                        ? pxToCm(boundaryWidth)
-                        : ""
-                      : boundaryWidth || ""
-                  }
-                  onChange={(e) => {
-                    const raw = e.target.value;
-                    if (raw === "") {
-                      setBoundaryWidth(0);
-                      return;
+                <div className="diagram-toolbar-group diagram-toolbar-size-group">
+                  <span className="diagram-toolbar-label">W</span>
+                  <input
+                    className="diagram-toolbar-input"
+                    type="number"
+                    min="0"
+                    max={boundaryUnit === "cm" ? "200" : "10000"}
+                    step={boundaryUnit === "cm" ? "0.5" : "100"}
+                    value={
+                      boundaryUnit === "cm"
+                        ? boundaryWidth > 0
+                          ? pxToCm(boundaryWidth)
+                          : ""
+                        : boundaryWidth || ""
                     }
-                    const v = parseFloat(raw);
-                    if (isNaN(v) || v < 0) return;
-                    setBoundaryWidth(boundaryUnit === "cm" ? cmToPx(v) : Math.round(v));
-                  }}
-                  placeholder="—"
-                  title={t.tipBoundaryWidth}
-                  style={{
-                    width: "58px",
-                    padding: "3px 6px",
-                    fontSize: "0.75rem",
-                    border: "1px solid var(--app-border)",
-                    borderRadius: "5px",
-                    background: "var(--app-bg)",
-                    color: "var(--app-fg)",
-                    textAlign: "center",
-                    fontVariantNumeric: "tabular-nums",
-                  }}
-                />
-                <span
-                  style={{
-                    fontSize: "0.65rem",
-                    color: "var(--app-fg-tertiary)",
-                    userSelect: "none",
-                  }}
-                >
-                  ×
-                </span>
-                <span
-                  style={{
-                    fontSize: "0.7rem",
-                    fontWeight: 700,
-                    color: "var(--app-fg-secondary)",
-                    userSelect: "none",
-                  }}
-                >
-                  H
-                </span>
-                <input
-                  type="number"
-                  min="0"
-                  max={boundaryUnit === "cm" ? "200" : "10000"}
-                  step={boundaryUnit === "cm" ? "0.5" : "100"}
-                  value={
-                    boundaryUnit === "cm"
-                      ? boundaryHeight > 0
-                        ? pxToCm(boundaryHeight)
-                        : ""
-                      : boundaryHeight || ""
-                  }
-                  onChange={(e) => {
-                    const raw = e.target.value;
-                    if (raw === "") {
-                      setBoundaryHeight(0);
-                      return;
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw === "") {
+                        setBoundaryWidth(0);
+                        return;
+                      }
+                      const v = parseFloat(raw);
+                      if (isNaN(v) || v < 0) return;
+                      setBoundaryWidth(boundaryUnit === "cm" ? cmToPx(v) : Math.round(v));
+                    }}
+                    placeholder="—"
+                    title={t.tipBoundaryWidth}
+                  />
+                  <span className="diagram-toolbar-times">×</span>
+                  <span className="diagram-toolbar-label">H</span>
+                  <input
+                    className="diagram-toolbar-input"
+                    type="number"
+                    min="0"
+                    max={boundaryUnit === "cm" ? "200" : "10000"}
+                    step={boundaryUnit === "cm" ? "0.5" : "100"}
+                    value={
+                      boundaryUnit === "cm"
+                        ? boundaryHeight > 0
+                          ? pxToCm(boundaryHeight)
+                          : ""
+                        : boundaryHeight || ""
                     }
-                    const v = parseFloat(raw);
-                    if (isNaN(v) || v < 0) return;
-                    setBoundaryHeight(boundaryUnit === "cm" ? cmToPx(v) : Math.round(v));
-                  }}
-                  placeholder="—"
-                  title={t.tipBoundaryHeight}
-                  style={{
-                    width: "58px",
-                    padding: "3px 6px",
-                    fontSize: "0.75rem",
-                    border: "1px solid var(--app-border)",
-                    borderRadius: "5px",
-                    background: "var(--app-bg)",
-                    color: "var(--app-fg)",
-                    textAlign: "center",
-                    fontVariantNumeric: "tabular-nums",
-                  }}
-                />
-
-                {/* ── 分隔 ── */}
-                <span
-                  style={{
-                    width: "1px",
-                    height: "18px",
-                    background: "var(--app-border)",
-                    flexShrink: 0,
-                  }}
-                />
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw === "") {
+                        setBoundaryHeight(0);
+                        return;
+                      }
+                      const v = parseFloat(raw);
+                      if (isNaN(v) || v < 0) return;
+                      setBoundaryHeight(boundaryUnit === "cm" ? cmToPx(v) : Math.round(v));
+                    }}
+                    placeholder="—"
+                    title={t.tipBoundaryHeight}
+                  />
+                </div>
 
                 {/* ── 单位 + 预设组 ── */}
-                <button
-                  className="btn btn-sm btn-secondary"
-                  onClick={() => setBoundaryUnit(boundaryUnit === "px" ? "cm" : "px")}
-                  title={boundaryUnit === "px" ? "切换为厘米" : "Switch to px"}
-                  style={{
-                    padding: "2px 7px",
-                    fontSize: "0.7rem",
-                    fontWeight: 600,
-                    lineHeight: 1.3,
-                    fontFamily: "monospace",
-                    minWidth: "30px",
-                  }}
-                >
-                  {boundaryUnit}
-                </button>
-                {Object.entries(BOUNDARY_PRESETS).map(([key, p]) => (
+                <div className="diagram-toolbar-group diagram-toolbar-preset-group">
                   <button
-                    key={key}
-                    className="btn btn-sm btn-secondary"
-                    onClick={() => applyBoundaryPreset(key)}
-                    title={`${p.label}: ${p.widthCm}×${p.heightCm} cm`}
-                    style={{
-                      padding: "2px 7px",
-                      fontSize: "0.7rem",
-                      fontWeight: 600,
-                      lineHeight: 1.3,
-                    }}
+                    className="btn btn-sm btn-secondary diagram-toolbar-button diagram-toolbar-unit"
+                    onClick={() => setBoundaryUnit(boundaryUnit === "px" ? "cm" : "px")}
+                    title={boundaryUnit === "px" ? "切换为厘米" : "Switch to px"}
                   >
-                    {p.label}
+                    {boundaryUnit}
                   </button>
-                ))}
-
-                {/* ── 分隔 ── */}
-                <span
-                  style={{
-                    width: "1px",
-                    height: "18px",
-                    background: "var(--app-border)",
-                    flexShrink: 0,
-                  }}
-                />
+                  {Object.entries(BOUNDARY_PRESETS).map(([key, p]) => (
+                    <button
+                      key={key}
+                      className="btn btn-sm btn-secondary diagram-toolbar-button"
+                      onClick={() => applyBoundaryPreset(key)}
+                      title={`${p.label}: ${p.widthCm}×${p.heightCm} cm`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
 
                 {/* ── 开关组 ── */}
-                <button
-                  className={`btn btn-sm ${boundaryConstrain ? "btn-accent" : "btn-secondary"}`}
-                  onClick={() => setBoundaryConstrain(!boundaryConstrain)}
-                  disabled={boundaryWidth <= 0 || boundaryHeight <= 0}
-                  title={boundaryConstrain ? "约束布局 — 点击解除" : "仅显示边界 — 点击约束"}
-                  style={{ padding: "3px 7px", lineHeight: 1 }}
-                >
-                  {boundaryConstrain ? (
-                    <CompressIcon width="0.85em" height="0.85em" />
-                  ) : (
-                    <ExpandIcon width="0.85em" height="0.85em" />
-                  )}
-                </button>
-                <button
-                  className={`btn btn-sm ${boundaryRatioLock ? "btn-accent" : "btn-secondary"}`}
-                  onClick={() => setBoundaryRatioLock(!boundaryRatioLock)}
-                  disabled={boundaryWidth <= 0 || boundaryHeight <= 0}
-                  title={boundaryRatioLock ? "等比锁定 — 点击解锁" : "自由尺寸 — 点击等比"}
-                  style={{ padding: "3px 7px", lineHeight: 1 }}
-                >
-                  <LinkIcon width="0.85em" height="0.85em" />
-                </button>
-                <button
-                  className={`btn btn-sm ${showBoundary ? "btn-accent" : "btn-secondary"}`}
-                  onClick={() => setShowBoundary(!showBoundary)}
-                  disabled={boundaryWidth <= 0 || boundaryHeight <= 0}
-                  title={showBoundary ? t.tipHideBoundary : t.tipShowBoundary}
-                  style={{ padding: "3px 7px", lineHeight: 1 }}
-                >
-                  {showBoundary ? (
-                    <EyeIcon width="0.9em" height="0.9em" />
-                  ) : (
-                    <EyeSlashIcon width="0.9em" height="0.9em" />
-                  )}
-                </button>
+                <div className="diagram-toolbar-group diagram-toolbar-icon-group">
+                  <button
+                    className={`btn btn-sm ${boundaryConstrain ? "btn-accent" : "btn-secondary"} diagram-toolbar-icon-button`}
+                    onClick={() => setBoundaryConstrain(!boundaryConstrain)}
+                    disabled={boundaryWidth <= 0 || boundaryHeight <= 0}
+                    title={boundaryConstrain ? "约束布局 — 点击解除" : "仅显示边界 — 点击约束"}
+                  >
+                    {boundaryConstrain ? (
+                      <CompressIcon width="0.85em" height="0.85em" />
+                    ) : (
+                      <ExpandIcon width="0.85em" height="0.85em" />
+                    )}
+                  </button>
+                  <button
+                    className={`btn btn-sm ${boundaryRatioLock ? "btn-accent" : "btn-secondary"} diagram-toolbar-icon-button`}
+                    onClick={() => setBoundaryRatioLock(!boundaryRatioLock)}
+                    disabled={boundaryWidth <= 0 || boundaryHeight <= 0}
+                    title={boundaryRatioLock ? "等比锁定 — 点击解锁" : "自由尺寸 — 点击等比"}
+                  >
+                    <LinkIcon width="0.85em" height="0.85em" />
+                  </button>
+                  <button
+                    className={`btn btn-sm ${showBoundary ? "btn-accent" : "btn-secondary"} diagram-toolbar-icon-button`}
+                    onClick={() => setShowBoundary(!showBoundary)}
+                    disabled={boundaryWidth <= 0 || boundaryHeight <= 0}
+                    title={showBoundary ? t.tipHideBoundary : t.tipShowBoundary}
+                  >
+                    {showBoundary ? (
+                      <EyeIcon width="0.9em" height="0.9em" />
+                    ) : (
+                      <EyeSlashIcon width="0.9em" height="0.9em" />
+                    )}
+                  </button>
+                </div>
 
-                <span style={{ flex: 1 }} />
+                {/* ── 导入/导出 ── */}
+                <div className="diagram-toolbar-group diagram-toolbar-icon-group">
+                  <button
+                    className="btn btn-sm btn-secondary diagram-toolbar-icon-button"
+                    onClick={() => exportToClipboard()}
+                    title="导出到剪贴板"
+                  >
+                    <CopyIcon width="0.85em" height="0.85em" />
+                  </button>
+                  <button
+                    className="btn btn-sm btn-secondary diagram-toolbar-icon-button"
+                    onClick={openImportModal}
+                    title={lang === "zh" ? "粘贴数据导入" : "Paste data to import"}
+                  >
+                    <PasteIcon width="0.85em" height="0.85em" />
+                  </button>
+                </div>
+
+                <span className="diagram-toolbar-spacer" />
 
                 {/* ── 全屏 ── */}
                 <button
-                  className="btn btn-sm btn-secondary"
+                  className="btn btn-sm btn-secondary diagram-toolbar-icon-button diagram-toolbar-fullscreen"
                   onClick={() => setDiagramFullscreen(!diagramFullscreen)}
                   title={diagramFullscreen ? "退出全屏" : "全屏预览 (Esc 退出)"}
-                  style={{ padding: "3px 7px", lineHeight: 1 }}
                 >
                   {diagramFullscreen ? (
                     <CompressIcon width="0.85em" height="0.85em" />
@@ -915,6 +887,64 @@ const App = () => {
         onDelete={deleteSnapshot}
         formatTimestamp={formatTimestamp}
       />
+      {importModalOpen && (
+        <div className="import-modal-overlay is-open" onClick={closeImportModal}>
+          <div
+            className="import-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="import-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="import-modal-header">
+              <div>
+                <p className="import-modal-eyebrow">JSON</p>
+                <h3 id="import-modal-title">
+                  {lang === "zh" ? "导入 ER 图数据" : "Import ER Diagram Data"}
+                </h3>
+              </div>
+              <button
+                className="import-modal-close"
+                type="button"
+                onClick={closeImportModal}
+                aria-label={lang === "zh" ? "关闭导入弹窗" : "Close import dialog"}
+              >
+                ×
+              </button>
+            </div>
+            <p className="import-modal-desc">
+              {lang === "zh"
+                ? "粘贴通过工具栏导出的 JSON 数据，确认后会恢复图结构、位置与显示设置。"
+                : "Paste JSON exported from the toolbar. Import restores structure, positions, and display settings."}
+            </p>
+            <textarea
+              className="import-modal-textarea"
+              value={importText}
+              onChange={(e) => {
+                setImportText(e.target.value);
+                if (importError) setImportError(null);
+              }}
+              placeholder={
+                lang === "zh" ? "在此粘贴导出的 JSON 数据..." : "Paste exported JSON data here..."
+              }
+              autoFocus
+            />
+            {importError && <div className="import-modal-error">⚠️ {importError}</div>}
+            <div className="import-modal-actions">
+              <button className="btn btn-sm btn-secondary" type="button" onClick={closeImportModal}>
+                {lang === "zh" ? "取消" : "Cancel"}
+              </button>
+              <button
+                className="btn btn-sm btn-accent"
+                type="button"
+                onClick={handleImportFromModal}
+              >
+                {lang === "zh" ? "导入" : "Import"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };
