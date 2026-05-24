@@ -1,5 +1,6 @@
 import type {
   AttributeLabelMode,
+  DiagramVisualSettings,
   EREdgeModel,
   ERNodeModel,
   GraphLike,
@@ -7,6 +8,7 @@ import type {
   ParsedTable,
 } from "../types";
 import { generateChenModelData } from "../builder";
+import { normalizeDiagramVisualSettings } from "../visualStyle";
 
 interface MutableGraph extends GraphLike {
   removeItem(item: unknown): void;
@@ -65,8 +67,10 @@ export const hideRelationships = (
   graph: MutableGraph | null | undefined,
   tables?: ParsedTable[] | null,
   relationships?: ParsedRelationship[] | null,
+  visualSettings?: Partial<DiagramVisualSettings> | null,
 ) => {
   if (!graph || graph.destroyed) return;
+  const visual = normalizeDiagramVisualSettings(visualSettings);
 
   // 1. 收集实体对
   const pairs = collectRelPairs(graph);
@@ -101,12 +105,12 @@ export const hideRelationships = (
       edgeType: SIMPLIFIED_EDGE_TYPE,
       style: {
         stroke: "#64748b",
-        lineWidth: 1.5,
+        lineWidth: visual.lineWidth,
       },
       labelCfg: {
         style: {
           fill: "#64748b",
-          fontSize: 12,
+          fontSize: visual.fontSize,
           fontWeight: "bold",
           background: { fill: "#fff", padding: [2, 4, 2, 4], radius: 2 },
         },
@@ -124,6 +128,7 @@ export interface ShowRelationshipsOptions {
   relationships: ParsedRelationship[] | null | undefined;
   labelMode: AttributeLabelMode | string;
   isColored: boolean;
+  visualSettings?: Partial<DiagramVisualSettings> | null;
 }
 
 /** 移除简化连线，恢复关系菱形和原始连边。 */
@@ -133,6 +138,7 @@ export const showRelationships = ({
   relationships,
   labelMode,
   isColored,
+  visualSettings,
 }: ShowRelationshipsOptions) => {
   if (!graph || graph.destroyed || !tables || !relationships) return;
 
@@ -160,6 +166,7 @@ export const showRelationships = ({
     isColored,
     labelMode,
     true,
+    visualSettings,
   );
 
   const relNodes = allNodes.filter((n) => n.nodeType === "relationship");

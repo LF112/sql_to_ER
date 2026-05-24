@@ -1,11 +1,13 @@
 import G6 from "@antv/g6";
-import type { ChenModelData, GraphLike } from "../types";
+import type { ChenModelData, DiagramVisualSettings, GraphLike } from "../types";
+import { normalizeDiagramVisualSettings, selectedLineWidth } from "../visualStyle";
 
 export interface CreateERGraphOptions {
   container: HTMLElement;
   data: ChenModelData;
   /** force2 布局配置；不传则不跑布局（恢复快照路径） */
   layoutCfg?: Record<string, unknown>;
+  visualSettings?: Partial<DiagramVisualSettings> | null;
 }
 
 /**
@@ -14,7 +16,12 @@ export interface CreateERGraphOptions {
  *
  * 拆出来是为了把 useGraph 里 ~100 行 G6 配置常量隔离开。
  */
-export function createERGraph({ container, layoutCfg }: CreateERGraphOptions): GraphLike {
+export function createERGraph({
+  container,
+  layoutCfg,
+  visualSettings,
+}: CreateERGraphOptions): GraphLike {
+  const visual = normalizeDiagramVisualSettings(visualSettings);
   // G6.Graph 接收一份扁平的 cfg；shouldBegin 等回调里的 e 在 G6 4.x 没有公开类型。
   const graph = new (G6 as any).Graph({
     container,
@@ -49,24 +56,24 @@ export function createERGraph({ container, layoutCfg }: CreateERGraphOptions): G
     },
     layout: layoutCfg,
     defaultNode: {
-      style: { lineWidth: 2, stroke: "#000", fill: "#fff" },
-      labelCfg: { style: { fill: "#000", fontSize: 16 } },
+      style: { lineWidth: visual.lineWidth, stroke: "#000", fill: "#fff" },
+      labelCfg: { style: { fill: "#000", fontSize: visual.fontSize } },
     },
     defaultEdge: {
-      style: { lineWidth: 1, stroke: "#000000" },
+      style: { lineWidth: visual.lineWidth, stroke: "#000000" },
       labelCfg: {
         style: {
           fill: "#000000",
-          fontSize: 14,
+          fontSize: visual.fontSize,
           background: { fill: "#fff", padding: [2, 4, 2, 4] },
         },
       },
     },
     edgeStateStyles: {
-      hover: { stroke: "#1890ff", lineWidth: 2 },
+      hover: { stroke: "#1890ff", lineWidth: visual.lineWidth },
       selected: {
         stroke: "#1890ff",
-        lineWidth: 3,
+        lineWidth: selectedLineWidth(visual),
         shadowColor: "rgba(24, 144, 255, 0.5)",
         shadowBlur: 6,
       },
@@ -76,11 +83,12 @@ export function createERGraph({ container, layoutCfg }: CreateERGraphOptions): G
       hover: { fill: "#e6f7ff", stroke: "#1890ff" },
       selected: {
         stroke: "#1890ff",
-        lineWidth: 3,
+        lineWidth: selectedLineWidth(visual),
         shadowColor: "rgba(24, 144, 255, 0.5)",
         shadowBlur: 12,
       },
     },
+    visualSettings: visual,
   });
 
   return graph as GraphLike;

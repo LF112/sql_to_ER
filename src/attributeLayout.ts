@@ -22,7 +22,13 @@ import {
   estimateAttributeHalfSize,
   patchRelationshipLinkPoints,
 } from "./builder";
-import type { ChenModelData, ERNodeModel, GraphLike, ParsedTable } from "./types";
+import type {
+  ChenModelData,
+  DiagramVisualSettings,
+  ERNodeModel,
+  GraphLike,
+  ParsedTable,
+} from "./types";
 
 interface LayoutNodeRecord {
   id: string;
@@ -268,7 +274,7 @@ export const computeAttributePositions = (graph: GraphLike, newAttrNodes: AttrNo
     if (!N) return;
 
     attrs.forEach((a) => {
-      const sz = estimateAttributeHalfSize(a.label);
+      const sz = estimateAttributeHalfSize(a.label, a.labelCfg?.style);
       a._halfW = sz.halfW;
       a._halfH = sz.halfH;
     });
@@ -532,7 +538,12 @@ export interface ShowAttributesOptions {
   tables: ParsedTable[] | null | undefined;
   labelMode: "name" | "comment" | "any";
   isColored: boolean;
-  updateStyles?: (graph: GraphLike, isColored: boolean) => void;
+  visualSettings?: Partial<DiagramVisualSettings> | null;
+  updateStyles?: (
+    graph: GraphLike,
+    isColored: boolean,
+    visualSettings?: Partial<DiagramVisualSettings> | null,
+  ) => void;
 }
 
 export const showAttributes = ({
@@ -540,6 +551,7 @@ export const showAttributes = ({
   tables,
   labelMode,
   isColored,
+  visualSettings,
   updateStyles,
 }: ShowAttributesOptions) => {
   if (!graph || graph.destroyed || !tables) return;
@@ -548,6 +560,7 @@ export const showAttributes = ({
     tables,
     isColored,
     labelMode,
+    visualSettings,
   ) as ChenModelData;
 
   // 过滤掉：对应实体不存在、或节点/边已存在的情况
@@ -577,6 +590,6 @@ export const showAttributes = ({
   graph.paint();
   graph.setAutoPaint(true);
 
-  if (typeof updateStyles === "function") updateStyles(graph, isColored);
+  if (typeof updateStyles === "function") updateStyles(graph, isColored, visualSettings);
   patchRelationshipLinkPoints(graph);
 };

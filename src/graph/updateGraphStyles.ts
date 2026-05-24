@@ -1,4 +1,5 @@
-import type { GraphLike } from "../types";
+import type { DiagramVisualSettings, GraphLike } from "../types";
+import { normalizeDiagramVisualSettings } from "../visualStyle";
 
 // G6 updateItem 的"上层 props"字段名/类型很灵活，这里就是装填样式属性的字典。
 interface StylesUpdate {
@@ -11,8 +12,13 @@ interface StylesUpdate {
  * 黑白 / 彩色样式批量切换。直接写到 G6 graph 上，不返回值。
  * 拆出来是为了让 useGraph 不必再持有这一大坨视觉常量。
  */
-export const updateGraphStyles = (graphInstance: GraphLike | null, colored: boolean): void => {
+export const updateGraphStyles = (
+  graphInstance: GraphLike | null,
+  colored: boolean,
+  visualSettings?: Partial<DiagramVisualSettings> | null,
+): void => {
   if (!graphInstance || graphInstance.destroyed) return;
+  const visual = normalizeDiagramVisualSettings(visualSettings);
 
   graphInstance.setAutoPaint(false);
 
@@ -26,7 +32,7 @@ export const updateGraphStyles = (graphInstance: GraphLike | null, colored: bool
           styles.style = {
             fill: "#e0f2fe",
             stroke: "#0ea5e9",
-            lineWidth: 2,
+            lineWidth: visual.lineWidth,
             lineDash: [4, 4],
             shadowColor: "rgba(14, 165, 233, 0.2)",
             shadowBlur: 10,
@@ -43,7 +49,7 @@ export const updateGraphStyles = (graphInstance: GraphLike | null, colored: bool
           styles.style = {
             fill: "#e0f2fe",
             stroke: "#0ea5e9",
-            lineWidth: 2,
+            lineWidth: visual.lineWidth,
             shadowColor: "rgba(14, 165, 233, 0.2)",
             shadowBlur: 10,
           };
@@ -59,7 +65,7 @@ export const updateGraphStyles = (graphInstance: GraphLike | null, colored: bool
         styles.style = {
           fill: "#f5f3ff",
           stroke: "#8b5cf6",
-          lineWidth: 2,
+          lineWidth: visual.lineWidth,
           shadowColor: "rgba(139, 92, 246, 0.2)",
           shadowBlur: 10,
         };
@@ -71,7 +77,7 @@ export const updateGraphStyles = (graphInstance: GraphLike | null, colored: bool
           styles.style = {
             fill: "#ecfdf5",
             stroke: "#10b981",
-            lineWidth: 2,
+            lineWidth: visual.lineWidth,
             shadowColor: "rgba(16, 185, 129, 0.2)",
             shadowBlur: 5,
           };
@@ -86,7 +92,7 @@ export const updateGraphStyles = (graphInstance: GraphLike | null, colored: bool
           styles.style = {
             fill: "#ffffff",
             stroke: "#94a3b8",
-            lineWidth: 2,
+            lineWidth: visual.lineWidth,
           };
           styles.labelCfg = {
             style: {
@@ -101,10 +107,7 @@ export const updateGraphStyles = (graphInstance: GraphLike | null, colored: bool
       styles.style = {
         fill: "#ffffff",
         stroke: "#1e293b",
-        lineWidth:
-          model.keyType === "pk" || model.nodeType === "entity" || model.nodeType === "relationship"
-            ? 2
-            : 1,
+        lineWidth: visual.lineWidth,
         shadowBlur: 0,
       };
       if (model.isPlaceholder) {
@@ -136,18 +139,31 @@ export const updateGraphStyles = (graphInstance: GraphLike | null, colored: bool
     graphInstance.updateItem(edge, {
       style: {
         stroke: "#000000",
-        lineWidth: 1.5,
+        lineWidth: visual.lineWidth,
         endArrow: false,
       },
       labelCfg: {
         style: {
           fill: "#000000",
-          fontSize: 12,
+          fontSize: visual.fontSize,
           background: {
             fill: "#ffffff",
             padding: [2, 4, 2, 4],
             radius: 2,
           },
+        },
+      },
+    });
+  });
+
+  graphInstance.getNodes().forEach((node) => {
+    const model = node.getModel();
+    graphInstance.updateItem(node, {
+      labelCfg: {
+        ...(model.labelCfg || {}),
+        style: {
+          ...(model.labelCfg?.style || {}),
+          fontSize: visual.fontSize,
         },
       },
     });

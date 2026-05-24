@@ -3,7 +3,8 @@
  * 导出 SVG 功能模块
  */
 import type { MutableRefObject } from "react";
-import type { GraphLike } from "./types";
+import type { DiagramVisualSettings, GraphLike } from "./types";
+import { DEFAULT_DIAGRAM_VISUAL_SETTINGS, normalizeDiagramVisualSettings } from "./visualStyle";
 
 // ─── 公共类型 ────────────────────────────────────────────
 
@@ -44,6 +45,7 @@ interface BaseExportOptions {
   G6: G6Like;
   /** 底色矩形颜色（默认 #ffffff）。历史快照传入暖米白和卡片融合。 */
   backgroundFill?: string;
+  visualSettings?: Partial<DiagramVisualSettings> | null;
 }
 
 export interface BuildExportSVGResult {
@@ -73,6 +75,7 @@ export interface ExportDrawioOptions {
   onError?: (message: string) => void;
   onDone?: ExportDoneCallback;
   patchRelationshipLinkPoints?: PatchRelationshipFn;
+  visualSettings?: Partial<DiagramVisualSettings> | null;
 }
 
 // ─── 实现 ────────────────────────────────────────────────
@@ -102,6 +105,7 @@ export function downloadSVG(svgString: string, filename: string): void {
 export function buildExportSVG(options: BuildExportSVGOptions, cb: BuildExportSVGCallback): void {
   const { graphRef, containerRef, patchRelationshipLinkPoints, G6 } = options;
   const backgroundFill = options.backgroundFill || "#ffffff";
+  const visual = normalizeDiagramVisualSettings(options.visualSettings);
   try {
     const sourceGraph = graphRef.current as unknown as ExportableGraph | null;
     const sourceContainer = containerRef.current;
@@ -125,20 +129,20 @@ export function buildExportSVG(options: BuildExportSVGOptions, cb: BuildExportSV
       modes: { default: [] },
       layout: null,
       defaultNode: {
-        style: { lineWidth: 2, stroke: "#000", fill: "#fff" },
-        labelCfg: { style: { fill: "#000", fontSize: 16 } },
+        style: { lineWidth: visual.lineWidth, stroke: "#000", fill: "#fff" },
+        labelCfg: { style: { fill: "#000", fontSize: visual.fontSize } },
       },
       defaultEdge: {
-        style: { lineWidth: 1, stroke: "#000" },
+        style: { lineWidth: visual.lineWidth, stroke: "#000" },
         labelCfg: {
           style: {
             fill: "#000",
-            fontSize: 14,
+            fontSize: visual.fontSize,
             background: { fill: "#fff", padding: [2, 4, 2, 4] },
           },
         },
       },
-      edgeStateStyles: { hover: { stroke: "#1890ff", lineWidth: 2 } },
+      edgeStateStyles: { hover: { stroke: "#1890ff", lineWidth: visual.lineWidth } },
       defaultEdgeConfig: {
         type: "cubic-horizontal",
         router: {
@@ -366,26 +370,29 @@ interface DrawioStyleSource {
   labelCfg?: {
     style?: {
       fill?: string;
+      fontSize?: number;
       fontWeight?: string | number;
       fontStyle?: string;
     };
   };
   nodeType?: string;
   keyType?: string;
+  pkUnderlineHidden?: boolean;
 }
 
 // 把样式对象拼成 drawio 的 style 串。drawio 不认 G6 的驼峰键，需要映射。
 function buildVertexStyle(model: DrawioStyleSource): string {
   const s = model.style || {};
+  const lblStyle = (model.labelCfg && model.labelCfg.style) || {};
   const fill = s.fill || "#ffffff";
   const stroke = s.stroke || "#000000";
-  const strokeWidth = s.lineWidth || 1;
+  const strokeWidth = s.lineWidth || DEFAULT_DIAGRAM_VISUAL_SETTINGS.lineWidth;
+  const fontSize = lblStyle.fontSize || DEFAULT_DIAGRAM_VISUAL_SETTINGS.fontSize;
   const dashed = Array.isArray(s.lineDash) && s.lineDash.length ? "dashed=1;" : "";
   const labelFontColor =
     (model.labelCfg && model.labelCfg.style && model.labelCfg.style.fill) || "#1e293b";
 
   // fontStyle 是 bitmask：1=bold, 2=italic, 4=underline
-  const lblStyle = (model.labelCfg && model.labelCfg.style) || {};
   let fontStyle = 0;
   if (
     lblStyle.fontWeight === "bold" ||
@@ -396,25 +403,27 @@ function buildVertexStyle(model: DrawioStyleSource): string {
   if (lblStyle.fontStyle === "italic") fontStyle |= 2;
 
   if (model.nodeType === "entity") {
-    return `rounded=0;whiteSpace=wrap;html=1;fillColor=${fill};strokeColor=${stroke};strokeWidth=${strokeWidth};fontSize=16;fontStyle=${fontStyle || 1};fontColor=${labelFontColor};${dashed}`;
+    return `rounded=0;whiteSpace=wrap;html=1;fillColor=${fill};strokeColor=${stroke};strokeWidth=${strokeWidth};fontSize=${fontSize};fontStyle=${fontStyle};fontColor=${labelFontColor};${dashed}`;
   }
   if (model.nodeType === "attribute") {
     // 主键：加下划线（bit 4），且通常加粗
-    if (model.keyType === "pk") fontStyle |= 4 | 1;
-    return `ellipse;whiteSpace=wrap;html=1;fillColor=${fill};strokeColor=${stroke};strokeWidth=${strokeWidth};fontSize=13;fontStyle=${fontStyle};fontColor=${labelFontColor};${dashed}`;
+    if (model.keyType === "pk" && !model.pkUnderlineHidden) fontStyle |= 4;
+    return `ellipse;whiteSpace=wrap;html=1;fillColor=${fill};strokeColor=${stroke};strokeWidth=${strokeWidth};fontSize=${fontSize};fontStyle=${fontStyle};fontColor=${labelFontColor};${dashed}`;
   }
   if (model.nodeType === "relationship") {
-    return `rhombus;whiteSpace=wrap;html=1;fillColor=${fill};strokeColor=${stroke};strokeWidth=${strokeWidth};fontSize=14;fontStyle=${fontStyle};fontColor=${labelFontColor};${dashed}`;
+    return `rhombus;whiteSpace=wrap;html=1;fillColor=${fill};strokeColor=${stroke};strokeWidth=${strokeWidth};fontSize=${fontSize};fontStyle=${fontStyle};fontColor=${labelFontColor};${dashed}`;
   }
-  return `rounded=0;whiteSpace=wrap;html=1;fillColor=${fill};strokeColor=${stroke};strokeWidth=${strokeWidth};`;
+  return `rounded=0;whiteSpace=wrap;html=1;fillColor=${fill};strokeColor=${stroke};strokeWidth=${strokeWidth};fontSize=${fontSize};`;
 }
 
 function buildEdgeStyle(model: DrawioStyleSource): string {
   const s = model.style || {};
+  const lblStyle = (model.labelCfg && model.labelCfg.style) || {};
   const stroke = s.stroke || "#000000";
-  const strokeWidth = s.lineWidth || 1;
+  const strokeWidth = s.lineWidth || DEFAULT_DIAGRAM_VISUAL_SETTINGS.lineWidth;
+  const fontSize = lblStyle.fontSize || DEFAULT_DIAGRAM_VISUAL_SETTINGS.fontSize;
   // endArrow=none：Chen 模型里 entity-attribute、entity-relationship 都是无向线
-  return `endArrow=none;html=1;rounded=0;edgeStyle=none;strokeColor=${stroke};strokeWidth=${strokeWidth};fontSize=12;`;
+  return `endArrow=none;html=1;rounded=0;edgeStyle=none;strokeColor=${stroke};strokeWidth=${strokeWidth};fontSize=${fontSize};`;
 }
 
 // 生成一个 drawio diagram id（短、仅字母数字下划线，drawio 对 id 没有严格校验但保守一些）

@@ -50,16 +50,8 @@ body::before {
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(
-      ellipse 60% 50% at 12% 0%,
-      rgba(217, 119, 87, 0.09) 0%,
-      transparent 60%
-    ),
-    radial-gradient(
-      ellipse 45% 45% at 100% 100%,
-      rgba(106, 155, 204, 0.06) 0%,
-      transparent 55%
-    );
+    radial-gradient(ellipse 60% 50% at 12% 0%, rgba(217, 119, 87, 0.09) 0%, transparent 60%),
+    radial-gradient(ellipse 45% 45% at 100% 100%, rgba(106, 155, 204, 0.06) 0%, transparent 55%);
 }
 
 ::selection {
@@ -459,10 +451,7 @@ body::before {
   flex: 1;
   min-height: 600px;
   background-color: #ffffff;
-  background-image: radial-gradient(
-    rgba(20, 20, 19, 0.14) 1.5px,
-    transparent 1.5px
-  );
+  background-image: radial-gradient(rgba(20, 20, 19, 0.14) 1.5px, transparent 1.5px);
   background-size: 24px 24px;
   border: none;
   border-radius: 0;
@@ -512,6 +501,18 @@ body::before {
   padding-inline: 10px;
 }
 
+.diagram-toolbar-visual-group {
+  gap: 10px;
+  padding-inline: 10px;
+}
+
+.diagram-toolbar-range-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+}
+
 .diagram-toolbar-label,
 .diagram-toolbar-times {
   color: var(--app-ink-3);
@@ -524,6 +525,22 @@ body::before {
   color: var(--app-ink-2);
   font-weight: var(--weight-semibold);
   letter-spacing: 0.08em;
+}
+
+.diagram-toolbar-value {
+  min-width: 18px;
+  color: var(--app-ink-2);
+  font-family: var(--app-font-mono);
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-semibold);
+  text-align: right;
+}
+
+.diagram-toolbar-range {
+  width: 78px;
+  accent-color: var(--app-accent-warm);
+  cursor: pointer;
 }
 
 .diagram-toolbar-input {
@@ -1168,10 +1185,7 @@ body::before {
    旧版本 Chrome 对 ::selection { color: inherit } 有计算时机的 bug。 */
 .cm-host .cm-selectionBackground,
 .cm-host .cm-editor .cm-selectionLayer .cm-selectionBackground,
-.cm-host .cm-editor.cm-focused
-  > .cm-scroller
-  > .cm-selectionLayer
-  .cm-selectionBackground {
+.cm-host .cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
   background: transparent !important;
 }
 
@@ -1528,6 +1542,19 @@ body::before {
     padding-inline: 8px;
   }
 
+  .diagram-toolbar-visual-group {
+    padding-inline: 8px;
+    gap: 6px;
+  }
+
+  .diagram-toolbar-range-control {
+    gap: 4px;
+  }
+
+  .diagram-toolbar-range {
+    width: 58px;
+  }
+
   .diagram-toolbar-input {
     width: 52px;
     height: 24px;
@@ -1801,16 +1828,8 @@ body.is-lang-fading .lang-fade-target {
 @media (prefers-color-scheme: dark) {
   body::before {
     background:
-      radial-gradient(
-        ellipse 60% 50% at 12% 0%,
-        rgba(217, 119, 87, 0.12) 0%,
-        transparent 60%
-      ),
-      radial-gradient(
-        ellipse 45% 45% at 100% 100%,
-        rgba(106, 155, 204, 0.08) 0%,
-        transparent 55%
-      );
+      radial-gradient(ellipse 60% 50% at 12% 0%, rgba(217, 119, 87, 0.12) 0%, transparent 60%),
+      radial-gradient(ellipse 45% 45% at 100% 100%, rgba(106, 155, 204, 0.08) 0%, transparent 55%);
   }
 
   .input-textarea,
@@ -1862,10 +1881,21 @@ body.is-lang-fading .lang-fade-target {
     box-shadow 560ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-.export-btn[data-state="idle"] { width: 140px; }
-.export-btn[data-state="open"] { width: 296px; cursor: default; }
-.export-btn[data-state="loading"] { width: 200px; cursor: default; }
-.export-btn[data-state="success"] { width: 180px; cursor: default; }
+.export-btn[data-state="idle"] {
+  width: 140px;
+}
+.export-btn[data-state="open"] {
+  width: 296px;
+  cursor: default;
+}
+.export-btn[data-state="loading"] {
+  width: 200px;
+  cursor: default;
+}
+.export-btn[data-state="success"] {
+  width: 180px;
+  cursor: default;
+}
 
 .export-btn[data-state="idle"]:hover {
   transform: scale(1.02);
@@ -1962,9 +1992,15 @@ body.is-lang-fading .lang-fade-target {
   pointer-events: none;
   transition: color 200ms ease;
 }
-.export-opt[data-fmt="PNG"]:hover .export-opt-label { color: #60a5fa; }
-.export-opt[data-fmt="SVG"]:hover .export-opt-label { color: #34d399; }
-.export-opt[data-fmt="XML"]:hover .export-opt-label { color: #f59e0b; }
+.export-opt[data-fmt="PNG"]:hover .export-opt-label {
+  color: #60a5fa;
+}
+.export-opt[data-fmt="SVG"]:hover .export-opt-label {
+  color: #34d399;
+}
+.export-opt[data-fmt="XML"]:hover .export-opt-label {
+  color: #f59e0b;
+}
 
 .export-sep {
   width: 1px;
@@ -1988,7 +2024,9 @@ body.is-lang-fading .lang-fade-target {
   justify-content: center;
   color: #a3a3a3;
   cursor: pointer;
-  transition: background 200ms ease, color 200ms ease;
+  transition:
+    background 200ms ease,
+    color 200ms ease;
 }
 .export-cancel:hover {
   background: rgba(64, 64, 64, 0.5);
@@ -2005,7 +2043,9 @@ body.is-lang-fading .lang-fade-target {
   animation: export-spin 800ms linear infinite;
 }
 @keyframes export-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 .export-view-loading .loading-label {
   font-size: 14px;
@@ -2027,7 +2067,9 @@ body.is-lang-fading .lang-fade-target {
   animation: export-draw 460ms cubic-bezier(0.32, 0.72, 0, 1) 180ms forwards;
 }
 @keyframes export-draw {
-  to { stroke-dashoffset: 0; }
+  to {
+    stroke-dashoffset: 0;
+  }
 }
 .export-view-success .success-label {
   font-size: 14px;
@@ -2098,11 +2140,7 @@ body.is-lang-fading .lang-fade-target {
   inset: auto auto -18% -10%;
   width: 55%;
   height: 70%;
-  background: radial-gradient(
-    ellipse at center,
-    rgba(217, 119, 87, 0.26) 0%,
-    transparent 65%
-  );
+  background: radial-gradient(ellipse at center, rgba(217, 119, 87, 0.26) 0%, transparent 65%);
   filter: blur(40px);
   pointer-events: none;
 }
@@ -2112,11 +2150,7 @@ body.is-lang-fading .lang-fade-target {
   inset: -10% -12% auto auto;
   width: 48%;
   height: 58%;
-  background: radial-gradient(
-    ellipse at center,
-    rgba(196, 185, 154, 0.34) 0%,
-    transparent 70%
-  );
+  background: radial-gradient(ellipse at center, rgba(196, 185, 154, 0.34) 0%, transparent 70%);
   filter: blur(40px);
   pointer-events: none;
 }
@@ -2213,7 +2247,7 @@ body.is-lang-fading .lang-fade-target {
   letter-spacing: 0.01em;
   pointer-events: none;
   transition: opacity 600ms var(--ease-default);
-  box-shadow: 0 10px 28px rgba(20, 20, 19, 0.10);
+  box-shadow: 0 10px 28px rgba(20, 20, 19, 0.1);
 }
 .history-hint > svg {
   color: var(--app-accent);

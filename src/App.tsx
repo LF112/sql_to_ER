@@ -67,6 +67,8 @@ const App = () => {
     boundaryUnit,
     boundaryConstrain,
     boundaryRatioLock,
+    diagramFontSize,
+    diagramLineWidth,
     hasGraph,
     error,
     loading,
@@ -85,6 +87,8 @@ const App = () => {
     setBoundaryUnit,
     setBoundaryConstrain,
     setBoundaryRatioLock,
+    setDiagramFontSize,
+    setDiagramLineWidth,
     applyBoundaryPreset,
     handleGenerate,
     handleForceAlign,
@@ -160,6 +164,7 @@ const App = () => {
       onDone,
       patchRelationshipLinkPoints,
       G6,
+      visualSettings: { fontSize: diagramFontSize, lineWidth: diagramLineWidth },
     });
   };
 
@@ -176,6 +181,7 @@ const App = () => {
       onDone,
       patchRelationshipLinkPoints,
       G6,
+      visualSettings: { fontSize: diagramFontSize, lineWidth: diagramLineWidth },
     });
   };
 
@@ -190,6 +196,7 @@ const App = () => {
       onError: setError,
       onDone,
       patchRelationshipLinkPoints,
+      visualSettings: { fontSize: diagramFontSize, lineWidth: diagramLineWidth },
     });
   };
 
@@ -784,6 +791,36 @@ const App = () => {
                   </button>
                 </div>
 
+                {/* ── 图形样式 ── */}
+                <div className="diagram-toolbar-group diagram-toolbar-visual-group">
+                  <label className="diagram-toolbar-range-control" title="文本大小">
+                    <span className="diagram-toolbar-label">T</span>
+                    <input
+                      className="diagram-toolbar-range"
+                      type="range"
+                      min="10"
+                      max="28"
+                      step="1"
+                      value={diagramFontSize}
+                      onChange={(e) => setDiagramFontSize(Number(e.target.value))}
+                    />
+                    <span className="diagram-toolbar-value">{diagramFontSize}</span>
+                  </label>
+                  <label className="diagram-toolbar-range-control" title="线条粗细">
+                    <span className="diagram-toolbar-label">L</span>
+                    <input
+                      className="diagram-toolbar-range"
+                      type="range"
+                      min="1"
+                      max="6"
+                      step="0.5"
+                      value={diagramLineWidth}
+                      onChange={(e) => setDiagramLineWidth(Number(e.target.value))}
+                    />
+                    <span className="diagram-toolbar-value">{diagramLineWidth}</span>
+                  </label>
+                </div>
+
                 <span className="diagram-toolbar-spacer" />
 
                 {/* ── 全屏 ── */}
@@ -851,7 +888,9 @@ const App = () => {
                 <div
                   className={`underline-toggle ${hidePkUnderline ? "active" : ""}`}
                   onClick={() => setHidePkUnderline(!hidePkUnderline)}
-                  title={hidePkUnderline ? "显示主键下划线" : "隐藏主键下划线"}
+                  title={
+                    hidePkUnderline ? "恢复主键下划线与节点加粗" : "隐藏主键下划线并取消节点加粗"
+                  }
                 >
                   <UnderlineIcon />
                 </div>

@@ -22,6 +22,13 @@ import { updateBoundaryRect, clampNodesToBoundary, boundaryToBox } from "../grap
 import type { BoundaryBox } from "../graph/boundaryRect";
 import { attachEntityDragSync } from "../graph/attachEntityDragSync";
 import { attachNodeSelection } from "../graph/attachEntitySelection";
+import {
+  DEFAULT_DIAGRAM_VISUAL_SETTINGS,
+  applyDiagramVisualSettingsToGraph,
+  applyPkEmphasisToGraph,
+  normalizeDiagramVisualSettings,
+} from "../visualStyle";
+import type { DiagramVisualSettings } from "../types";
 
 const PX_PER_CM = 96 / 2.54;
 
@@ -73,6 +80,8 @@ export interface GenerateOptions {
   boundaryUnit?: BoundaryUnit;
   boundaryConstrain?: boolean;
   boundaryRatioLock?: boolean;
+  diagramFontSize?: number;
+  diagramLineWidth?: number;
   view?: ExportedGraphView | null;
   graphData?: { nodes: ERNodeModel[]; edges: EREdgeModel[] } | null;
   positionMap?: Map<string, Partial<ERNodeModel>> | null;
@@ -97,6 +106,8 @@ interface ExportedGraphData {
     hidePkUnderline: boolean;
     forceOn: boolean;
     readOnly: boolean;
+    diagramFontSize: number;
+    diagramLineWidth: number;
   };
   boundary: {
     width: number;
@@ -137,6 +148,8 @@ export interface UseGraphResult {
   boundaryUnit: BoundaryUnit;
   boundaryConstrain: boolean;
   boundaryRatioLock: boolean;
+  diagramFontSize: number;
+  diagramLineWidth: number;
   hasGraph: boolean;
   error: string | null;
   loading: boolean;
@@ -155,6 +168,8 @@ export interface UseGraphResult {
   setBoundaryUnit: (next: BoundaryUnit) => void;
   setBoundaryConstrain: (next: boolean) => void;
   setBoundaryRatioLock: (next: boolean) => void;
+  setDiagramFontSize: (next: number) => void;
+  setDiagramLineWidth: (next: number) => void;
   applyBoundaryPreset: (key: string) => void;
   setError: (next: string | null) => void;
   // commands
@@ -200,6 +215,12 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
   const [boundaryUnit, setBoundaryUnitState] = useState<BoundaryUnit>("px");
   const [boundaryConstrain, setBoundaryConstrainState] = useState(true);
   const [boundaryRatioLock, setBoundaryRatioLockState] = useState(false);
+  const [diagramFontSize, setDiagramFontSizeState] = useState(
+    DEFAULT_DIAGRAM_VISUAL_SETTINGS.fontSize,
+  );
+  const [diagramLineWidth, setDiagramLineWidthState] = useState(
+    DEFAULT_DIAGRAM_VISUAL_SETTINGS.lineWidth,
+  );
   const boundaryRatioRef = useRef(1);
   const [hideRelations, setHideRelationsState] = useState(false);
   const [hidePkUnderline, setHidePkUnderlineState] = useState(false);
@@ -242,6 +263,8 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     boundaryUnit,
     boundaryConstrain,
     boundaryRatioLock,
+    diagramFontSize,
+    diagramLineWidth,
     t,
   });
   stateRef.current = {
@@ -259,6 +282,8 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     boundaryUnit,
     boundaryConstrain,
     boundaryRatioLock,
+    diagramFontSize,
+    diagramLineWidth,
     t,
   };
 
@@ -304,6 +329,10 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     const useBoundaryUnit = genOpts.boundaryUnit ?? cur.boundaryUnit;
     const useBoundaryConstrain = genOpts.boundaryConstrain ?? cur.boundaryConstrain;
     const useBoundaryRatioLock = genOpts.boundaryRatioLock ?? cur.boundaryRatioLock;
+    const useVisualSettings = normalizeDiagramVisualSettings({
+      fontSize: genOpts.diagramFontSize ?? cur.diagramFontSize,
+      lineWidth: genOpts.diagramLineWidth ?? cur.diagramLineWidth,
+    });
     const restoreView = genOpts.view ?? null;
     const restoreGraphData = genOpts.graphData ?? null;
     const positionMap = genOpts.positionMap ?? null;
@@ -397,6 +426,8 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
       setBoundaryUnitState(useBoundaryUnit);
       setBoundaryConstrainState(useBoundaryConstrain);
       setBoundaryRatioLockState(useBoundaryRatioLock);
+      setDiagramFontSizeState(useVisualSettings.fontSize);
+      setDiagramLineWidthState(useVisualSettings.lineWidth);
 
       tablesDataRef.current = tables;
       relationshipsRef.current = relationships;
@@ -407,6 +438,7 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
         useIsColored,
         useShowComment ? "comment" : "name",
         useHideFields,
+        useVisualSettings,
       );
 
       if (restoreGraphData) {
@@ -490,6 +522,7 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
         container,
         data: { nodes, edges },
         layoutCfg,
+        visualSettings: useVisualSettings,
       }) as GraphLike & {
         data: (d: { nodes: unknown; edges: unknown }) => void;
         render: () => void;
@@ -501,7 +534,8 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
       graph.data({ nodes, edges });
       graph.render();
 
-      if (!restoreGraphData) updateGraphStyles(graph, useIsColored);
+      if (!restoreGraphData) updateGraphStyles(graph, useIsColored, useVisualSettings);
+      else applyDiagramVisualSettingsToGraph(graph, useVisualSettings);
       patchRelationshipLinkPoints(graph);
 
       if (useHideRelations && !restoreGraphData) {
@@ -509,19 +543,11 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
           graph as unknown as Parameters<typeof hideRelationships>[0],
           tablesDataRef.current,
           relationshipsRef.current,
+          useVisualSettings,
         );
       }
       if (useHidePkUnderline) {
-        graph.setAutoPaint(false);
-        graph.getNodes().forEach((n: any) => {
-          const m = n.getModel() as ERNodeModel;
-          if (m.nodeType !== "attribute" || m.keyType !== "pk") return;
-          const group = n.getContainer?.();
-          const underline = group?.find?.((e: any) => e.get?.("name") === "attribute-underline");
-          if (underline) underline.attr({ opacity: 0 });
-        });
-        graph.paint();
-        graph.setAutoPaint(true);
+        applyPkEmphasisToGraph(graph, true);
       }
 
       if (restoreView?.matrix && restoreView.matrix.length === 9) {
@@ -604,6 +630,10 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
       tables: tablesDataRef.current,
       labelMode: showComment ? "comment" : "name",
       isColored,
+      visualSettings: {
+        fontSize: stateRef.current.diagramFontSize,
+        lineWidth: stateRef.current.diagramLineWidth,
+      },
       updateStyles: updateGraphStyles,
     });
   };
@@ -616,8 +646,30 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
   const setIsColored = (next: boolean) => {
     setIsColoredState(next);
     if (hasGraph && graphRef.current) {
-      updateGraphStyles(graphRef.current, next);
+      updateGraphStyles(graphRef.current, next, {
+        fontSize: stateRef.current.diagramFontSize,
+        lineWidth: stateRef.current.diagramLineWidth,
+      });
+      applyPkEmphasisToGraph(graphRef.current, stateRef.current.hidePkUnderline);
     }
+  };
+
+  const setDiagramFontSize = (next: number) => {
+    const visual = normalizeDiagramVisualSettings({
+      fontSize: next,
+      lineWidth: stateRef.current.diagramLineWidth,
+    });
+    setDiagramFontSizeState(visual.fontSize);
+    applyDiagramVisualSettingsToGraph(graphRef.current, visual);
+  };
+
+  const setDiagramLineWidth = (next: number) => {
+    const visual = normalizeDiagramVisualSettings({
+      fontSize: stateRef.current.diagramFontSize,
+      lineWidth: next,
+    });
+    setDiagramLineWidthState(visual.lineWidth);
+    applyDiagramVisualSettingsToGraph(graphRef.current, visual);
   };
 
   const setShowComment = (next: boolean) => {
@@ -676,6 +728,10 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
         graphRef.current as unknown as Parameters<typeof hideRelationships>[0],
         tablesDataRef.current,
         relationshipsRef.current,
+        {
+          fontSize: stateRef.current.diagramFontSize,
+          lineWidth: stateRef.current.diagramLineWidth,
+        },
       );
     } else {
       showRelationships({
@@ -684,6 +740,10 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
         relationships: relationshipsRef.current,
         labelMode: stateRef.current.showComment ? "comment" : "name",
         isColored: stateRef.current.isColored,
+        visualSettings: {
+          fontSize: stateRef.current.diagramFontSize,
+          lineWidth: stateRef.current.diagramLineWidth,
+        },
       });
     }
   };
@@ -698,19 +758,7 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
 
   const setHidePkUnderline = (next: boolean) => {
     setHidePkUnderlineState(next);
-    const graph = graphRef.current;
-    if (!graph || graph.destroyed) return;
-    graph.setAutoPaint(false);
-    graph.getNodes().forEach((n: any) => {
-      const m = n.getModel() as ERNodeModel;
-      if (m.nodeType !== "attribute" || m.keyType !== "pk") return;
-      const group = n.getContainer?.();
-      if (!group) return;
-      const underline = group.find?.((e: any) => e.get?.("name") === "attribute-underline");
-      if (underline) underline.attr({ opacity: next ? 0 : 1 });
-    });
-    graph.paint();
-    graph.setAutoPaint(true);
+    applyPkEmphasisToGraph(graphRef.current, next);
   };
 
   const applyBoundaryRectToGraph = (w?: number, h?: number, v?: boolean) => {
@@ -1011,6 +1059,8 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
         hidePkUnderline: cur.hidePkUnderline,
         forceOn: forceOnRef.current,
         readOnly: readOnlyRef.current,
+        diagramFontSize: cur.diagramFontSize,
+        diagramLineWidth: cur.diagramLineWidth,
       },
       boundary: {
         width: boundaryRef.current.width,
@@ -1065,6 +1115,8 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
       boundaryUnit: boundary.unit === "cm" ? "cm" : "px",
       boundaryConstrain: boundary.constrain !== false,
       boundaryRatioLock: !!boundary.ratioLock,
+      diagramFontSize: settings.diagramFontSize,
+      diagramLineWidth: settings.diagramLineWidth,
       view: data.v === 2 ? data.view : null,
       graphData:
         data.v === 2 && Array.isArray(data.nodes) && Array.isArray(data.edges)
@@ -1097,6 +1149,8 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     boundaryUnit,
     boundaryConstrain,
     boundaryRatioLock,
+    diagramFontSize,
+    diagramLineWidth,
     hasGraph,
     error,
     loading,
@@ -1114,6 +1168,8 @@ export function useGraph({ t, initialLang }: UseGraphOptions): UseGraphResult {
     setBoundaryUnit,
     setBoundaryConstrain,
     setBoundaryRatioLock,
+    setDiagramFontSize,
+    setDiagramLineWidth,
     applyBoundaryPreset,
     setError,
     handleGenerate,

@@ -17,6 +17,13 @@ import type {
   ParsedRelationship,
   ParsedTable,
 } from "./types";
+import type { DiagramVisualSettings } from "./types";
+import {
+  DEFAULT_DIAGRAM_VISUAL_SETTINGS,
+  applyDiagramVisualSettingsToData,
+  normalizeDiagramVisualSettings,
+  selectedLineWidth,
+} from "./visualStyle";
 
 /**
  * 根据 labelMode 与 (name, comment) 计算应显示的标签
@@ -46,6 +53,7 @@ const generateChenModelData = (
   isColored: boolean = true,
   labelMode: AttributeLabelMode | string = "name",
   hideFields: boolean = false,
+  visualSettings?: Partial<DiagramVisualSettings> | null,
 ): ChenModelData => {
   const nodes: ERNodeModel[] = [];
   const edges: EREdgeModel[] = [];
@@ -284,6 +292,7 @@ const generateChenModelData = (
     });
   });
 
+  applyDiagramVisualSettingsToData(nodes, edges, visualSettings);
   return { nodes, edges };
 };
 
@@ -309,6 +318,9 @@ const getTextWidth = (text: string, fontSize: number): number => {
   }
   return width;
 };
+
+const getTextYOffset = (fontSize: number): number => Math.max(1, Math.round(fontSize * 0.06));
+const getUnderlineY = (fontSize: number): number => getTextYOffset(fontSize) + fontSize * 0.62;
 
 interface DiamondLinkContext {
   getBBox(): {
@@ -369,7 +381,7 @@ const registerCustomNodes = (G6: G6Like): void => {
 
   // 实体节点（矩形）
   const drawEntity = (cfg: any, group: any) => {
-    const fontSize = 18;
+    const fontSize = cfg.labelCfg?.style?.fontSize || DEFAULT_DIAGRAM_VISUAL_SETTINGS.fontSize;
     const text = cfg.label || "";
 
     const textWidth = getTextWidth(text, fontSize);
@@ -415,7 +427,7 @@ const registerCustomNodes = (G6: G6Like): void => {
       group.addShape("text", {
         attrs: {
           x: 0,
-          y: 0,
+          y: getTextYOffset(fontSize),
           text: cfg.label,
           fontSize,
           textAlign: "center",
@@ -443,7 +455,7 @@ const registerCustomNodes = (G6: G6Like): void => {
     // getLinkPoint 时会抛 "getMethod is not a function"）。
     update(cfg: any, node: any) {
       const group = node.getContainer();
-      const fontSize = 18;
+      const fontSize = cfg.labelCfg?.style?.fontSize || DEFAULT_DIAGRAM_VISUAL_SETTINGS.fontSize;
       const textStr = cfg.label || "";
       const textWidth = getTextWidth(textStr, fontSize);
       const padding = 10;
@@ -471,7 +483,7 @@ const registerCustomNodes = (G6: G6Like): void => {
         if (node.hasState?.("selected")) {
           shape.attr({
             stroke: "#1890ff",
-            lineWidth: 3,
+            lineWidth: selectedLineWidth({ lineWidth: cfg.style?.lineWidth }),
             shadowColor: "rgba(24, 144, 255, 0.5)",
             shadowBlur: 12,
           });
@@ -482,10 +494,13 @@ const registerCustomNodes = (G6: G6Like): void => {
       if (cfg.label) {
         const labelAttrs: Record<string, unknown> = {
           text: cfg.label,
+          x: 0,
+          y: getTextYOffset(fontSize),
           fill: cfg.labelCfg?.style?.fill ?? "#000",
           fontWeight: cfg.labelCfg?.style?.fontWeight ?? "bold",
           fontStyle: cfg.labelCfg?.style?.fontStyle ?? "normal",
           fontFamily: cfg.labelCfg?.style?.fontFamily,
+          fontSize,
         };
         if (textShape) {
           textShape.attr(labelAttrs);
@@ -493,7 +508,7 @@ const registerCustomNodes = (G6: G6Like): void => {
           group.addShape("text", {
             attrs: {
               x: 0,
-              y: 0,
+              y: getTextYOffset(fontSize),
               fontSize,
               textAlign: "center",
               textBaseline: "middle",
@@ -511,7 +526,7 @@ const registerCustomNodes = (G6: G6Like): void => {
 
   // 属性节点（椭圆）
   const drawAttribute = (cfg: any, group: any) => {
-    const fontSize = 15;
+    const fontSize = cfg.labelCfg?.style?.fontSize || DEFAULT_DIAGRAM_VISUAL_SETTINGS.fontSize;
     const text = cfg.label || "";
 
     const textWidth = getTextWidth(text, fontSize);
@@ -543,7 +558,7 @@ const registerCustomNodes = (G6: G6Like): void => {
       group.addShape("text", {
         attrs: {
           x: 0,
-          y: 0,
+          y: getTextYOffset(fontSize),
           text: cfg.label,
           fontSize,
           textAlign: "center",
@@ -556,16 +571,17 @@ const registerCustomNodes = (G6: G6Like): void => {
         capture: false,
       });
 
-      if (isPrimaryKey) {
+      if (isPrimaryKey && !cfg.pkUnderlineHidden) {
         const underlineWidth = getTextWidth(text, fontSize);
+        const underlineY = getUnderlineY(fontSize);
         group.addShape("line", {
           attrs: {
             x1: -underlineWidth / 2,
-            y1: 12,
+            y1: underlineY,
             x2: underlineWidth / 2,
-            y2: 12,
+            y2: underlineY,
             stroke: cfg.labelCfg?.style?.fill || "#000",
-            lineWidth: 1,
+            lineWidth: cfg.style?.lineWidth || DEFAULT_DIAGRAM_VISUAL_SETTINGS.lineWidth,
           },
           name: "attribute-underline",
         });
@@ -578,7 +594,7 @@ const registerCustomNodes = (G6: G6Like): void => {
     draw: drawAttribute,
     update(cfg: any, node: any) {
       const group = node.getContainer();
-      const fontSize = 15;
+      const fontSize = cfg.labelCfg?.style?.fontSize || DEFAULT_DIAGRAM_VISUAL_SETTINGS.fontSize;
       const textStr = cfg.label || "";
       const textWidth = getTextWidth(textStr, fontSize);
       const padding = 16;
@@ -603,7 +619,7 @@ const registerCustomNodes = (G6: G6Like): void => {
         if (node.hasState?.("selected")) {
           shape.attr({
             stroke: "#1890ff",
-            lineWidth: 3,
+            lineWidth: selectedLineWidth({ lineWidth: cfg.style?.lineWidth }),
             shadowColor: "rgba(24, 144, 255, 0.5)",
             shadowBlur: 12,
           });
@@ -614,10 +630,13 @@ const registerCustomNodes = (G6: G6Like): void => {
       if (cfg.label) {
         const labelAttrs: Record<string, unknown> = {
           text: cfg.label,
+          x: 0,
+          y: getTextYOffset(fontSize),
           fill: cfg.labelCfg?.style?.fill ?? "#000",
           fontWeight: cfg.labelCfg?.style?.fontWeight ?? (isPrimaryKey ? "bold" : "normal"),
           fontStyle: cfg.labelCfg?.style?.fontStyle ?? "normal",
           fontFamily: cfg.labelCfg?.style?.fontFamily,
+          fontSize,
         };
         if (textShape) {
           textShape.attr(labelAttrs);
@@ -625,7 +644,7 @@ const registerCustomNodes = (G6: G6Like): void => {
           group.addShape("text", {
             attrs: {
               x: 0,
-              y: 0,
+              y: getTextYOffset(fontSize),
               fontSize,
               textAlign: "center",
               textBaseline: "middle",
@@ -641,25 +660,27 @@ const registerCustomNodes = (G6: G6Like): void => {
 
       // 主键下划线随 keyType / label 变化增删；宽度也得跟新文本走。
       const underline = group.find((e: any) => e.get("name") === "attribute-underline");
-      if (isPrimaryKey && cfg.label) {
+      if (isPrimaryKey && cfg.label && !cfg.pkUnderlineHidden) {
         const underlineWidth = getTextWidth(textStr, fontSize);
+        const underlineY = getUnderlineY(fontSize);
         if (underline) {
           underline.attr({
             x1: -underlineWidth / 2,
-            y1: 12,
+            y1: underlineY,
             x2: underlineWidth / 2,
-            y2: 12,
+            y2: underlineY,
             stroke: cfg.labelCfg?.style?.fill ?? "#000",
+            lineWidth: cfg.style?.lineWidth || DEFAULT_DIAGRAM_VISUAL_SETTINGS.lineWidth,
           });
         } else {
           group.addShape("line", {
             attrs: {
               x1: -underlineWidth / 2,
-              y1: 12,
+              y1: underlineY,
               x2: underlineWidth / 2,
-              y2: 12,
+              y2: underlineY,
               stroke: cfg.labelCfg?.style?.fill ?? "#000",
-              lineWidth: 1,
+              lineWidth: cfg.style?.lineWidth || DEFAULT_DIAGRAM_VISUAL_SETTINGS.lineWidth,
             },
             name: "attribute-underline",
           });
@@ -672,7 +693,7 @@ const registerCustomNodes = (G6: G6Like): void => {
 
   // 关系节点（菱形）
   const drawRelationship = (cfg: any, group: any) => {
-    const fontSize = 16;
+    const fontSize = cfg.labelCfg?.style?.fontSize || DEFAULT_DIAGRAM_VISUAL_SETTINGS.fontSize;
     const text = cfg.label || "";
 
     const textWidth = getTextWidth(text, fontSize);
@@ -709,7 +730,7 @@ const registerCustomNodes = (G6: G6Like): void => {
       group.addShape("text", {
         attrs: {
           x: 0,
-          y: 0,
+          y: getTextYOffset(fontSize),
           text: cfg.label,
           fontSize,
           textAlign: "center",
@@ -729,7 +750,7 @@ const registerCustomNodes = (G6: G6Like): void => {
     draw: drawRelationship,
     update(cfg: any, node: any) {
       const group = node.getContainer();
-      const fontSize = 16;
+      const fontSize = cfg.labelCfg?.style?.fontSize || DEFAULT_DIAGRAM_VISUAL_SETTINGS.fontSize;
       const textStr = cfg.label || "";
       const textWidth = getTextWidth(textStr, fontSize);
       const horizontalPadding = 24;
@@ -761,7 +782,7 @@ const registerCustomNodes = (G6: G6Like): void => {
         if (node.hasState?.("selected")) {
           shape.attr({
             stroke: "#1890ff",
-            lineWidth: 3,
+            lineWidth: selectedLineWidth({ lineWidth: cfg.style?.lineWidth }),
             shadowColor: "rgba(24, 144, 255, 0.5)",
             shadowBlur: 12,
           });
@@ -772,10 +793,13 @@ const registerCustomNodes = (G6: G6Like): void => {
       if (cfg.label) {
         const labelAttrs: Record<string, unknown> = {
           text: cfg.label,
+          x: 0,
+          y: getTextYOffset(fontSize),
           fill: cfg.labelCfg?.style?.fill ?? "#000",
           fontWeight: cfg.labelCfg?.style?.fontWeight ?? "normal",
           fontStyle: cfg.labelCfg?.style?.fontStyle ?? "normal",
           fontFamily: cfg.labelCfg?.style?.fontFamily,
+          fontSize,
         };
         if (textShape) {
           textShape.attr(labelAttrs);
@@ -783,7 +807,7 @@ const registerCustomNodes = (G6: G6Like): void => {
           group.addShape("text", {
             attrs: {
               x: 0,
-              y: 0,
+              y: getTextYOffset(fontSize),
               fontSize,
               textAlign: "center",
               textBaseline: "middle",
@@ -879,6 +903,7 @@ const buildAttributeData = (
   tables: ParsedTable[],
   isColored: boolean = true,
   labelMode: AttributeLabelMode | string = "name",
+  visualSettings?: Partial<DiagramVisualSettings> | null,
 ): ChenModelData => {
   const nodes: ERNodeModel[] = [];
   const edges: EREdgeModel[] = [];
@@ -924,6 +949,7 @@ const buildAttributeData = (
       });
     });
   });
+  applyDiagramVisualSettingsToData(nodes, edges, visualSettings);
   return { nodes, edges };
 };
 
@@ -932,8 +958,9 @@ const buildAttributeData = (
  */
 const estimateAttributeHalfSize = (
   label: string | undefined | null,
+  visualSettings?: Partial<DiagramVisualSettings> | null,
 ): { halfW: number; halfH: number } => {
-  const fontSize = 15;
+  const fontSize = normalizeDiagramVisualSettings(visualSettings).fontSize;
   const padding = 16;
   const minWidth = 60;
   const minHeight = 40;

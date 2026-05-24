@@ -56,6 +56,11 @@ export interface ShapeStyle {
   endArrow?: boolean;
 }
 
+export interface DiagramVisualSettings {
+  fontSize: number;
+  lineWidth: number;
+}
+
 export interface LabelConfig {
   style?: {
     fill?: string;
@@ -82,6 +87,7 @@ export interface ERNodeModel {
   parentEntity?: string;
   isPlaceholder?: boolean;
   isSelfLoop?: boolean;
+  pkUnderlineHidden?: boolean;
   style?: ShapeStyle;
   labelCfg?: LabelConfig;
   [key: string]: unknown;

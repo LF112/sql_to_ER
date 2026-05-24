@@ -8,6 +8,7 @@ import { Compartment, EditorState } from "@codemirror/state";
 import { placeholder as placeholderExtension } from "@codemirror/view";
 import { sql, PostgreSQL } from "@codemirror/lang-sql";
 import type { ERNodeModel, GraphLike, GraphNodeLike } from "./types";
+import { DEFAULT_DIAGRAM_VISUAL_SETTINGS, normalizeDiagramVisualSettings } from "./visualStyle";
 
 // ========================
 // CodeEditor React 组件 (CodeMirror 6)
@@ -117,12 +118,12 @@ export function getNodeDimensions(nodeModel: ERNodeModel): NodeDimensions {
   let fontSize: number;
 
   if (nodeModel.type === "entity") {
-    fontSize = 18;
+    fontSize = normalizeDiagramVisualSettings(nodeModel.labelCfg?.style).fontSize;
     const textWidth = getTextWidth(text, fontSize);
     width = Math.max(80, textWidth + 20);
     height = Math.max(50, fontSize + 20);
   } else if (nodeModel.type === "relationship") {
-    fontSize = 16;
+    fontSize = normalizeDiagramVisualSettings(nodeModel.labelCfg?.style).fontSize;
     const textWidth = getTextWidth(text, fontSize);
     const horizontalPadding = 24;
     const minWidth = 80;
@@ -132,7 +133,7 @@ export function getNodeDimensions(nodeModel: ERNodeModel): NodeDimensions {
     height = Math.max(40, Math.min(halfWidth * 0.6, fontSize + 16) * 2);
   } else {
     // attribute
-    fontSize = 15;
+    fontSize = normalizeDiagramVisualSettings(nodeModel.labelCfg?.style).fontSize;
     const textWidth = getTextWidth(text, fontSize);
     width = Math.max(60, textWidth + 32);
     height = Math.max(40, fontSize + 16);
@@ -221,14 +222,16 @@ export function setupNodeDoubleClickEdit(
     input.style.width = scaledWidth + "px";
     input.style.height = scaledHeight + "px";
     input.style.padding = "0";
-    input.style.border = `${2 * currentZoom}px solid ${borderColor}`;
+    input.style.border = `${(model.style?.lineWidth || DEFAULT_DIAGRAM_VISUAL_SETTINGS.lineWidth) * currentZoom}px solid ${borderColor}`;
     input.style.outline = "none";
     input.style.fontSize = scaledFontSize + "px";
     input.style.textAlign = "center";
     input.style.backgroundColor = "rgba(255, 255, 255, 0.95)";
     input.style.zIndex = "1000";
     input.style.boxShadow = `0 0 0 ${3 * currentZoom}px ${shadowColorRGB}`;
-    input.style.fontWeight = model.type === "entity" || model.keyType === "pk" ? "bold" : "normal";
+    input.style.fontWeight = model.labelCfg?.style?.fontWeight
+      ? String(model.labelCfg.style.fontWeight)
+      : "normal";
 
     if (model.type === "entity") {
       input.style.borderRadius = 4 * currentZoom + "px";
